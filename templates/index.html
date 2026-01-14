@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAFFLERi - Weighted Comment Raffle</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        @keyframes countdown {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .spinning {
+            animation: spin 1s linear infinite;
+        }
+        
+        .pulsing {
+            animation: pulse 1s ease-in-out infinite;
+        }
+        
+        .countdown-animation {
+            animation: countdown 0.5s ease-in-out;
+        }
+        
+        .winner-reveal {
+            animation: pulse 0.5s ease-in-out 3;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <div class="max-w-2xl mx-auto">
+            <!-- Header -->
+            <div class="text-center mb-8">
+                <h1 class="text-5xl font-bold text-white mb-2">RAFFLERi</h1>
+                <p class="text-blue-200 text-lg">Weighted Comment Raffle System</p>
+            </div>
+            
+            <!-- Main Card -->
+            <div class="bg-white rounded-lg shadow-2xl p-8 mb-6">
+                <!-- Platform Selector -->
+                <div class="mb-6">
+                    <label class="block text-gray-700 font-semibold mb-2">Platform</label>
+                    <div class="flex gap-4">
+                        <button 
+                            id="platform-youtube" 
+                            class="platform-btn flex-1 py-3 px-4 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700 transition"
+                            data-platform="youtube"
+                        >
+                            YouTube
+                        </button>
+                        <button 
+                            id="platform-tiktok" 
+                            class="platform-btn flex-1 py-3 px-4 rounded-lg bg-gray-400 text-white font-semibold cursor-not-allowed"
+                            disabled
+                            data-platform="tiktok"
+                        >
+                            TikTok (Coming Soon)
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Video URL Input -->
+                <div class="mb-6">
+                    <label for="video-url" class="block text-gray-700 font-semibold mb-2">
+                        Video URL
+                    </label>
+                    <input 
+                        type="text" 
+                        id="video-url" 
+                        placeholder="https://www.youtube.com/watch?v=..."
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                </div>
+                
+                <!-- Run Raffle Button -->
+                <button 
+                    id="run-raffle-btn"
+                    class="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold text-lg rounded-lg hover:from-purple-700 hover:to-blue-700 transition shadow-lg transform hover:scale-105"
+                >
+                    Run Raffle
+                </button>
+            </div>
+            
+            <!-- Animation Container -->
+            <div id="animation-container" class="hidden mb-6">
+                <div class="bg-white rounded-lg shadow-2xl p-8 text-center">
+                    <div id="animation-content" class="flex flex-col items-center justify-center min-h-[200px]">
+                        <div id="spinner" class="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full spinning mb-4"></div>
+                        <p id="animation-text" class="text-2xl font-semibold text-gray-700">Drawing winner...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Results Container -->
+            <div id="results-container" class="hidden">
+                <div class="bg-white rounded-lg shadow-2xl p-8">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">Winner!</h2>
+                    
+                    <div id="winner-display" class="text-center mb-6">
+                        <div class="bg-gradient-to-r from-purple-100 to-blue-100 rounded-lg p-6 mb-4">
+                            <p class="text-sm text-gray-600 mb-2">Winner</p>
+                            <p id="winner-username" class="text-3xl font-bold text-gray-800 mb-2"></p>
+                            <p class="text-sm text-gray-600">
+                                <span id="winner-entries"></span> entry/entries
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <div id="stats" class="grid grid-cols-2 gap-4 text-center">
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <p class="text-sm text-gray-600 mb-1">Total Entries</p>
+                            <p id="total-entries" class="text-2xl font-bold text-gray-800"></p>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-4">
+                            <p class="text-sm text-gray-600 mb-1">Participants</p>
+                            <p id="total-participants" class="text-2xl font-bold text-gray-800"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Error Container -->
+            <div id="error-container" class="hidden">
+                <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <p id="error-message" class="text-red-800"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
