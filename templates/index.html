@@ -12,8 +12,8 @@
         }
         
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.1); }
         }
         
         @keyframes countdown {
@@ -22,12 +22,22 @@
             100% { transform: scale(1); opacity: 1; }
         }
         
+        @keyframes shuffle {
+            0%, 100% { transform: translateX(0) rotate(0deg); }
+            25% { transform: translateX(-10px) rotate(-5deg); }
+            75% { transform: translateX(10px) rotate(5deg); }
+        }
+        
         .spinning {
             animation: spin 1s linear infinite;
         }
         
         .pulsing {
-            animation: pulse 1s ease-in-out infinite;
+            animation: pulse 0.6s ease-in-out infinite;
+        }
+        
+        .shuffling {
+            animation: shuffle 0.3s ease-in-out infinite;
         }
         
         .countdown-animation {

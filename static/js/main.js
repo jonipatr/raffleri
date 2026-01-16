@@ -11,10 +11,10 @@ document.getElementById('run-raffle-btn').addEventListener('click', async () => 
     document.getElementById('results-container').classList.add('hidden');
     document.getElementById('error-container').classList.add('hidden');
     
-    // Show animation
-    showAnimation();
-    
     try {
+        // Show loading animation while fetching
+        showLoadingAnimation();
+        
         // Add timeout to prevent hanging (60 seconds)
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 60000);
@@ -39,15 +39,20 @@ document.getElementById('run-raffle-btn').addEventListener('click', async () => 
             throw new Error(data.detail || 'An error occurred');
         }
         
-        // Wait for animation to complete (2-3 seconds)
+        // Hide loading, show raffle animation
+        hideLoadingAnimation();
+        showRaffleAnimation();
+        
+        // Wait for raffle animation (2-3 seconds)
         await new Promise(resolve => setTimeout(resolve, 2500));
         
         // Hide animation and show results
-        hideAnimation();
+        hideRaffleAnimation();
         showResults(data);
         
     } catch (error) {
-        hideAnimation();
+        hideLoadingAnimation();
+        hideRaffleAnimation();
         if (error.name === 'AbortError') {
             showError('Request timed out. The stream may have too many messages. Please try with a smaller stream or wait a moment and try again.');
         } else {
@@ -56,20 +61,38 @@ document.getElementById('run-raffle-btn').addEventListener('click', async () => 
     }
 });
 
-function showAnimation() {
+function showLoadingAnimation() {
     const container = document.getElementById('animation-container');
     const text = document.getElementById('animation-text');
+    const spinner = document.getElementById('spinner');
     
     container.classList.remove('hidden');
-    
-    // Update text to show we're fetching messages
+    spinner.classList.remove('hidden');
+    spinner.classList.add('spinning');
     text.textContent = 'Fetching live chat messages...';
+}
+
+function hideLoadingAnimation() {
+    const spinner = document.getElementById('spinner');
+    // Don't hide spinner, just change animation - it will be used for raffle animation
+    spinner.classList.remove('spinning');
+}
+
+function showRaffleAnimation() {
+    const text = document.getElementById('animation-text');
+    const spinner = document.getElementById('spinner');
     
-    // Countdown effect (but keep updating text to show progress)
+    // Make sure spinner is visible and change to raffle animation
+    spinner.classList.remove('hidden');
+    spinner.classList.remove('spinning');
+    spinner.classList.add('pulsing');
+    text.textContent = 'Selecting winner...';
+    
+    // Add some excitement with text animation
     let countdown = 3;
     const countdownInterval = setInterval(() => {
         if (countdown > 0) {
-            text.textContent = `Fetching messages... ${countdown}`;
+            text.textContent = `Selecting winner... ${countdown}`;
             text.classList.add('countdown-animation');
             setTimeout(() => {
                 text.classList.remove('countdown-animation');
@@ -77,13 +100,15 @@ function showAnimation() {
             countdown--;
         } else {
             clearInterval(countdownInterval);
-            text.textContent = 'Processing messages and selecting winner...';
+            text.textContent = 'And the winner is...';
         }
-    }, 2000);  // Longer interval since this might take a while
+    }, 600);
 }
 
-function hideAnimation() {
+function hideRaffleAnimation() {
     document.getElementById('animation-container').classList.add('hidden');
+    const spinner = document.getElementById('spinner');
+    spinner.classList.remove('pulsing');
 }
 
 function showResults(data) {
