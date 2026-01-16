@@ -50,32 +50,10 @@
             
             <!-- Main Card -->
             <div class="bg-white rounded-lg shadow-2xl p-8 mb-6">
-                <!-- Platform Selector -->
-                <div class="mb-6">
-                    <label class="block text-gray-700 font-semibold mb-2">Platform</label>
-                    <div class="flex gap-4">
-                        <button 
-                            id="platform-youtube" 
-                            class="platform-btn flex-1 py-3 px-4 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700 transition"
-                            data-platform="youtube"
-                        >
-                            YouTube
-                        </button>
-                        <button 
-                            id="platform-tiktok" 
-                            class="platform-btn flex-1 py-3 px-4 rounded-lg bg-gray-400 text-white font-semibold cursor-not-allowed"
-                            disabled
-                            data-platform="tiktok"
-                        >
-                            TikTok (Coming Soon)
-                        </button>
-                    </div>
-                </div>
-                
                 <!-- Video URL Input -->
                 <div class="mb-6">
                     <label for="video-url" class="block text-gray-700 font-semibold mb-2">
-                        Video URL
+                        YouTube Live Stream URL
                     </label>
                     <input 
                         type="text" 
@@ -83,6 +61,7 @@
                         placeholder="https://www.youtube.com/watch?v=..."
                         class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
+                    <p class="text-sm text-gray-500 mt-2">Enter a URL for an active YouTube live stream</p>
                 </div>
                 
                 <!-- Run Raffle Button -->
@@ -112,16 +91,17 @@
                     <div id="winner-display" class="text-center mb-6">
                         <div class="bg-gradient-to-r from-purple-100 to-blue-100 rounded-lg p-6 mb-4">
                             <p class="text-sm text-gray-600 mb-2">Winner</p>
-                            <p id="winner-username" class="text-3xl font-bold text-gray-800 mb-2"></p>
-                            <p class="text-sm text-gray-600">
-                                <span id="winner-entries"></span> entry/entries
-                            </p>
+                            <p id="winner-username" class="text-3xl font-bold text-gray-800 mb-4"></p>
+                            <div id="winner-comment" class="mt-4 pt-4 border-t border-gray-300">
+                                <p class="text-xs text-gray-500 mb-2">Winning Comment:</p>
+                                <p id="winner-comment-text" class="text-lg text-gray-700 italic"></p>
+                            </div>
                         </div>
                     </div>
                     
                     <div id="stats" class="grid grid-cols-2 gap-4 text-center">
                         <div class="bg-gray-50 rounded-lg p-4">
-                            <p class="text-sm text-gray-600 mb-1">Total Entries</p>
+                            <p class="text-sm text-gray-600 mb-1">Total Comments</p>
                             <p id="total-entries" class="text-2xl font-bold text-gray-800"></p>
                         </div>
                         <div class="bg-gray-50 rounded-lg p-4">

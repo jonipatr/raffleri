@@ -1,13 +1,13 @@
 import os
+import requests
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from jinja2 import Environment, FileSystemLoader
 from dotenv import load_dotenv
 
-from app.models.raffle import RaffleRequest, RaffleResponse
+from app.models.raffle import RaffleRequest, RaffleResponse, ChannelRequest, ChannelResponse
 from app.api.youtube_api import YouTubeAPI
-from app.api.tiktok_api import TikTokAPI
 from app.services.raffle import pick_winner
 
 # Load environment variables
@@ -28,7 +28,6 @@ def render_template(template_name: str, context: dict) -> str:
 # Initialize API clients (will be created lazily or raise error on first use)
 youtube_api_key = os.getenv("YOUTUBE_API_KEY")
 youtube_api = None
-tiktok_api = TikTokAPI()
 
 def get_youtube_api():
     """Get YouTube API client, raising error if API key is missing."""
@@ -53,57 +52,89 @@ async def read_root(request: Request):
 @app.post("/api/youtube/entries", response_model=RaffleResponse)
 async def youtube_raffle(request: RaffleRequest):
     """
-    Run a raffle for YouTube video comments.
+    Run a raffle for YouTube live chat messages.
     
     Args:
         request: RaffleRequest with video_url
         
     Returns:
-        RaffleResponse with winner and statistics
+        RaffleResponse with winner (including comment text) and statistics
     """
+    import asyncio
     try:
-        # Fetch user entries from YouTube
+        print(f"[DEBUG] Received raffle request for URL: {request.video_url}")
+        # Run the blocking API call in a thread pool to avoid blocking the event loop
+        loop = asyncio.get_event_loop()
         api = get_youtube_api()
-        entries = api.get_user_entries(request.video_url)
+        print("[DEBUG] Starting get_user_entries in executor...")
+        entries, user_comments_map, total_comments = await loop.run_in_executor(
+            None, 
+            api.get_user_entries, 
+            request.video_url
+        )
+        print(f"[DEBUG] Got {len(entries)} entries from API, total_comments: {total_comments}")
         
         if not entries:
             raise HTTPException(
                 status_code=404,
-                detail="No comments found for this video"
+                detail="No live chat messages found for this stream"
             )
         
-        # Pick winner
-        winner = pick_winner(entries)
+        # Pick winner (with comment text)
+        winner = pick_winner(entries, user_comments_map)
         
         # Calculate statistics
-        total_entries = sum(entry.entries for entry in entries)
         total_participants = len(entries)
         
         return RaffleResponse(
             winner=winner,
-            total_entries=total_entries,
+            total_comments=total_comments,
             total_participants=total_participants,
             platform="youtube"
         )
     
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=400, detail=f"YouTube API error: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing raffle: {str(e)}")
 
 
-@app.post("/api/tiktok/entries")
-async def tiktok_raffle(request: RaffleRequest):
+@app.post("/api/youtube/channel", response_model=ChannelResponse)
+async def youtube_channel(request: ChannelRequest):
     """
-    Run a raffle for TikTok video comments (not implemented).
+    Check if a YouTube channel has an active live stream.
     
     Args:
-        request: RaffleRequest with video_url
+        request: ChannelRequest with channel_url or channel_id
         
     Returns:
-        501 Not Implemented
+        ChannelResponse with live stream information if found
     """
-    raise HTTPException(
-        status_code=501,
-        detail="TikTok support coming soon"
-    )
+    try:
+        api = get_youtube_api()
+        result = api.get_active_live_stream(
+            channel_url=request.channel_url,
+            channel_id=request.channel_id
+        )
+        
+        if not result:
+            raise HTTPException(
+                status_code=404,
+                detail="No active live stream found for this channel"
+            )
+        
+        return ChannelResponse(
+            is_live=True,
+            video_id=result['video_id'],
+            video_url=result['video_url'],
+            live_chat_id=result['live_chat_id']
+        )
+    
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=400, detail=f"YouTube API error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error checking channel: {str(e)}")

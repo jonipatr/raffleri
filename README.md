@@ -1,14 +1,17 @@
-# RAFFLERi - Weighted Comment Raffle System
+# RAFFLERi - Weighted Live Chat Raffle System
 
-RAFFLERi is a web-based raffle tool that fetches YouTube video comments, weights entries by comment count (max 5 per user), and randomly selects one winner per raffle.
+RAFFLERi is a web-based raffle tool that fetches live chat messages from active YouTube live streams, weights entries by message count (max 5 per user), and randomly selects one winner per raffle. The winner's comment text is displayed along with their username.
 
 ## Features
 
-- Fetches comments from YouTube videos
-- Weights entries based on comment count (1-5 entries per user)
+- Fetches live chat messages from active YouTube live streams
+- Checks if a video is currently live before processing
+- Weights entries based on message count (1-5 entries per user)
 - Randomly selects one winner from the weighted pool
+- Displays the winning comment text along with the winner's username
 - Beautiful animated UI with Tailwind CSS
 - Each raffle is independent - no tracking of previous winners
+- Optional: Check if a YouTube channel has an active live stream
 
 ## Setup Instructions
 
@@ -84,11 +87,12 @@ http://localhost:8000
 
 ## Usage
 
-1. Select platform (currently only YouTube is supported)
-2. Enter a YouTube video URL
-3. Click "Run Raffle"
-4. Wait for the animation to complete
-5. View the winner and statistics
+1. Enter a YouTube live stream URL (must be an active live stream)
+2. Click "Run Raffle"
+3. Wait for the animation to complete
+4. View the winner, their winning comment, and statistics
+
+**Note:** Only active live streams are supported. Archived live streams are not accessible via the official YouTube API.
 
 ## Project Structure
 
@@ -99,14 +103,13 @@ raffleri/
 │   ├── main.py                 # FastAPI app entry point
 │   ├── api/
 │   │   ├── __init__.py
-│   │   ├── youtube_api.py      # YouTubeAPI class implementation
-│   │   └── tiktok_api.py       # TikTokAPI placeholder
+│   │   └── youtube_api.py      # YouTubeAPI class (active live streams only)
 │   ├── services/
 │   │   ├── __init__.py
 │   │   └── raffle.py           # Platform-agnostic raffle logic
 │   ├── models/
 │   │   ├── __init__.py
-│   │   └── raffle.py           # Pydantic models
+│   │   └── raffle.py           # Pydantic models (with comment text)
 │   └── utils/
 │       ├── __init__.py
 │       └── youtube.py           # YouTube URL parsing utilities
@@ -131,7 +134,7 @@ raffleri/
 Serves the main HTML page.
 
 ### POST /api/youtube/entries
-Runs a raffle for YouTube video comments.
+Runs a raffle for YouTube live chat messages from an active live stream.
 
 **Request Body:**
 ```json
@@ -148,7 +151,8 @@ Runs a raffle for YouTube video comments.
     "platform": "youtube",
     "user_id": "...",
     "username": "...",
-    "entries": 3
+    "entries": 3,
+    "comment_text": "This is the winning comment!"
   },
   "total_entries": 150,
   "total_participants": 45,
@@ -156,8 +160,39 @@ Runs a raffle for YouTube video comments.
 }
 ```
 
-### POST /api/tiktok/entries
-Placeholder endpoint (returns 501 Not Implemented).
+**Error Responses:**
+- `400 Bad Request`: Video is not live, live chat not enabled, or stream has ended
+- `404 Not Found`: No live chat messages found
+
+### POST /api/youtube/channel
+Check if a YouTube channel has an active live stream (optional feature).
+
+**Request Body:**
+```json
+{
+  "channel_url": "https://www.youtube.com/@channelname"
+}
+```
+or
+```json
+{
+  "channel_id": "UC..."
+}
+```
+
+**Response:**
+```json
+{
+  "is_live": true,
+  "video_id": "...",
+  "video_url": "https://www.youtube.com/watch?v=...",
+  "live_chat_id": "..."
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Invalid channel URL/ID or API error
+- `404 Not Found`: No active live stream found for this channel
 
 ## License
 

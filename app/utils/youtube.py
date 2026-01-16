@@ -44,3 +44,30 @@ def extract_video_id(url: str) -> str:
                 return video_id
     
     raise ValueError(f"Could not extract video ID from URL: {url}")
+
+
+def extract_channel_id(url: str) -> str | None:
+    """
+    Extract YouTube channel ID from various URL formats.
+    
+    Supports:
+    - https://www.youtube.com/channel/CHANNEL_ID (returns channel ID directly)
+    - https://www.youtube.com/@channelname (returns None, needs API resolution)
+    - https://www.youtube.com/c/channelname (returns None, needs API resolution)
+    - https://www.youtube.com/user/username (returns None, needs API resolution)
+    
+    Args:
+        url: YouTube channel URL
+        
+    Returns:
+        Channel ID string if /channel/ format, None otherwise (needs API resolution)
+    """
+    # Pattern for /channel/CHANNEL_ID
+    channel_pattern = r'(?:youtube\.com/channel/)([a-zA-Z0-9_-]+)'
+    match = re.search(channel_pattern, url)
+    if match:
+        return match.group(1)
+    
+    # For @channelname, c/channelname, or user/username formats,
+    # return None - these need to be resolved via YouTube API
+    return None
