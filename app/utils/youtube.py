@@ -71,3 +71,37 @@ def extract_channel_id(url: str) -> str | None:
     # For @channelname, c/channelname, or user/username formats,
     # return None - these need to be resolved via YouTube API
     return None
+
+
+def is_channel_url(url: str) -> bool:
+    """
+    Check if a URL is a YouTube channel URL.
+    
+    Supports:
+    - https://www.youtube.com/@channelname
+    - https://www.youtube.com/channel/CHANNEL_ID
+    - https://www.youtube.com/c/channelname
+    - https://www.youtube.com/user/username
+    
+    Args:
+        url: URL to check
+        
+    Returns:
+        True if URL appears to be a channel URL, False otherwise
+    """
+    if not url or 'youtube.com' not in url:
+        return False
+    
+    # Check for channel URL patterns
+    channel_patterns = [
+        r'youtube\.com/channel/',
+        r'youtube\.com/@',
+        r'youtube\.com/c/',
+        r'youtube\.com/user/',
+    ]
+    
+    for pattern in channel_patterns:
+        if re.search(pattern, url):
+            return True
+    
+    return False

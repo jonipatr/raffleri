@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse
 from jinja2 import Environment, FileSystemLoader
 from dotenv import load_dotenv
 
-from app.models.raffle import RaffleRequest, RaffleResponse, ChannelRequest, ChannelResponse
+from app.models.raffle import RaffleRequest, RaffleResponse, ChannelRequest, ChannelResponse, ChannelStreamsResponse
 from app.api.youtube_api import YouTubeAPI
 from app.services.raffle import pick_winner
 
@@ -138,3 +138,44 @@ async def youtube_channel(request: ChannelRequest):
         raise HTTPException(status_code=400, detail=f"YouTube API error: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error checking channel: {str(e)}")
+
+
+@app.post("/api/youtube/channel/streams", response_model=ChannelStreamsResponse)
+async def youtube_channel_streams(request: ChannelRequest):
+    """
+    Get all active live streams for a YouTube channel.
+    
+    Args:
+        request: ChannelRequest with channel_url or channel_id
+        
+    Returns:
+        ChannelStreamsResponse with list of active streams
+    """
+    from app.models.raffle import StreamInfo
+    
+    try:
+        api = get_youtube_api()
+        streams = api.get_active_live_streams(
+            channel_url=request.channel_url,
+            channel_id=request.channel_id
+        )
+        
+        # Convert to StreamInfo objects
+        stream_infos = [
+            StreamInfo(
+                video_id=stream['video_id'],
+                video_url=stream['video_url'],
+                live_chat_id=stream['live_chat_id'],
+                title=stream['title']
+            )
+            for stream in streams
+        ]
+        
+        return ChannelStreamsResponse(streams=stream_infos)
+    
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=400, detail=f"YouTube API error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching channel streams: {str(e)}")

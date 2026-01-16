@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 
 
 class RaffleEntry(BaseModel):
@@ -37,3 +37,16 @@ class ChannelResponse(BaseModel):
     video_id: Optional[str] = None
     video_url: Optional[str] = None
     live_chat_id: Optional[str] = None
+
+
+class StreamInfo(BaseModel):
+    """Information about a single live stream."""
+    video_id: str
+    video_url: str
+    live_chat_id: Optional[str] = None
+    title: str
+
+
+class ChannelStreamsResponse(BaseModel):
+    """Response model for channel streams endpoint."""
+    streams: list[StreamInfo]

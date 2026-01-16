@@ -418,6 +418,96 @@ class YouTubeAPI:
         except requests.exceptions.RequestException:
             return None
     
+    def get_active_live_streams(self, channel_url: Optional[str] = None, channel_id: Optional[str] = None) -> List[Dict]:
+        """
+        Get all active live streams for a channel.
+        
+        Args:
+            channel_url: YouTube channel URL (e.g., https://www.youtube.com/@channelname)
+            channel_id: YouTube channel ID (alternative to channel_url)
+            
+        Returns:
+            List of dictionaries with video_id, video_url, live_chat_id, and title for each active stream
+            
+        Raises:
+            ValueError: If neither channel_url nor channel_id is provided
+            requests.RequestException: If API request fails
+        """
+        if not channel_url and not channel_id:
+            raise ValueError("Either channel_url or channel_id must be provided")
+        
+        # Extract channel_id from URL if needed
+        if channel_url and not channel_id:
+            channel_id = extract_channel_id(channel_url)
+            
+            # If extraction failed, try to resolve @channelname handle
+            if not channel_id:
+                import re
+                handle_match = re.search(r'@([a-zA-Z0-9_-]+)', channel_url)
+                if handle_match:
+                    handle = handle_match.group(1)
+                    channel_id = self._resolve_channel_handle(handle)
+            
+            if not channel_id:
+                raise ValueError("Could not extract or resolve channel ID from URL")
+        
+        # Search for active live streams (get up to 50 to handle multiple streams)
+        params = {
+            'part': 'snippet',
+            'channelId': channel_id,
+            'eventType': 'live',
+            'type': 'video',
+            'maxResults': 50,  # Get all active streams
+            'key': self.api_key
+        }
+        
+        try:
+            response = requests.get(self.SEARCH_URL, params=params)
+            response.raise_for_status()
+            data = response.json()
+        except requests.exceptions.RequestException as e:
+            raise requests.exceptions.RequestException(
+                f"Failed to search for live streams: {str(e)}"
+            )
+        
+        if 'error' in data:
+            error = data['error']
+            error_msg = error.get('message', 'Unknown error')
+            error_code = error.get('code', 'Unknown')
+            raise requests.exceptions.RequestException(
+                f"YouTube API error ({error_code}): {error_msg}"
+            )
+        
+        items = data.get('items', [])
+        if not items:
+            return []
+        
+        # Process all live streams
+        streams = []
+        for video in items:
+            video_id = video.get('id', {}).get('videoId')
+            if not video_id:
+                continue
+            
+            # Get video title from snippet
+            snippet = video.get('snippet', {})
+            title = snippet.get('title', 'Untitled Stream')
+            
+            # Get live chat ID for this video
+            try:
+                live_chat_id = self.get_live_chat_id(video_id)
+            except requests.exceptions.RequestException:
+                live_chat_id = None
+            
+            streams.append({
+                'video_id': video_id,
+                'video_url': f"https://www.youtube.com/watch?v={video_id}",
+                'live_chat_id': live_chat_id,
+                'title': title
+            })
+        
+        return streams
+    
     def get_active_live_stream(self, channel_url: Optional[str] = None, channel_id: Optional[str] = None) -> Optional[Dict]:
         """
         Check if a channel has an active live stream.
@@ -451,52 +541,15 @@ class YouTubeAPI:
             if not channel_id:
                 raise ValueError("Could not extract or resolve channel ID from URL")
         
-        # Search for active live streams
-        params = {
-            'part': 'snippet',
-            'channelId': channel_id,
-            'eventType': 'live',
-            'type': 'video',
-            'maxResults': 1,
-            'key': self.api_key
-        }
-        
-        try:
-            response = requests.get(self.SEARCH_URL, params=params)
-            response.raise_for_status()
-            data = response.json()
-        except requests.exceptions.RequestException as e:
-            raise requests.exceptions.RequestException(
-                f"Failed to search for live streams: {str(e)}"
-            )
-        
-        if 'error' in data:
-            error = data['error']
-            error_msg = error.get('message', 'Unknown error')
-            error_code = error.get('code', 'Unknown')
-            raise requests.exceptions.RequestException(
-                f"YouTube API error ({error_code}): {error_msg}"
-            )
-        
-        items = data.get('items', [])
-        if not items:
+        # Use get_active_live_streams and return first one
+        streams = self.get_active_live_streams(channel_url=channel_url, channel_id=channel_id)
+        if not streams:
             return None
         
-        # Get the first live stream
-        video = items[0]
-        video_id = video.get('id', {}).get('videoId')
-        
-        if not video_id:
-            return None
-        
-        # Get live chat ID for this video
-        try:
-            live_chat_id = self.get_live_chat_id(video_id)
-        except requests.exceptions.RequestException:
-            live_chat_id = None
-        
+        # Return first stream (without title for backward compatibility)
+        first_stream = streams[0]
         return {
-            'video_id': video_id,
-            'video_url': f"https://www.youtube.com/watch?v={video_id}",
-            'live_chat_id': live_chat_id
+            'video_id': first_stream['video_id'],
+            'video_url': first_stream['video_url'],
+            'live_chat_id': first_stream['live_chat_id']
         }
