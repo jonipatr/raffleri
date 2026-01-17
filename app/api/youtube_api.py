@@ -143,11 +143,8 @@ class YouTubeAPI:
         total_results = None  # Will be set from first response
         max_pages = 5  # 5 pages × 2000 maxResults = 10,000 messages max
         
-        print(f"[DEBUG] Starting to fetch messages from liveChatId: {live_chat_id}")
-        
         # Use for loop instead of while - max 5 pages (10,000 messages)
         for page_count in range(1, max_pages + 1):
-            print(f"[DEBUG] Fetching page {page_count}...")
             params = {
                 'liveChatId': live_chat_id,
                 'part': 'snippet,authorDetails',
@@ -222,7 +219,6 @@ class YouTubeAPI:
             
             # Process messages
             items = data.get('items', [])
-            print(f"[DEBUG] Page {page_count}: Got {len(items)} items from API")
             
             messages_before = len(messages)
             for item in items:
@@ -250,33 +246,27 @@ class YouTubeAPI:
             messages_after = len(messages)
             messages_added = messages_after - messages_before
             
-            print(f"[DEBUG] Total messages collected so far: {len(messages)}, added this page: {messages_added}")
             
             # Stop early if we got 0 messages (no more available)
             if messages_added == 0 and len(messages) > 0:
-                print("[DEBUG] Got 0 new messages - all available messages fetched, stopping early")
                 break
             
             # Stop early if we've reached max_messages
             if len(messages) >= max_messages:
-                print(f"[DEBUG] Reached max_messages limit ({max_messages}), stopping")
                 break
             
             # Get nextPageToken for next iteration (if not on last page)
             if page_count < max_pages:
                 page_token = data.get('nextPageToken')
                 if not page_token:
-                    print("[DEBUG] No nextPageToken, finished fetching")
                     break
                 
                 # Respect polling interval to avoid rate limits
                 polling_interval_ms = data.get('pollingIntervalMillis', 1000)  # Default 1 second
                 polling_interval_sec = max(0.5, polling_interval_ms / 1000.0)
                 sleep_time = min(polling_interval_sec, 2.0)  # Cap at 2 seconds max
-                print(f"[DEBUG] Waiting {sleep_time:.2f} seconds before next request...")
                 time.sleep(sleep_time)
         
-        print(f"[DEBUG] Finished fetching. Total messages: {len(messages)}, Total pages: {page_count}")
         return messages, total_results
     
     def get_user_entries(
@@ -298,17 +288,12 @@ class YouTubeAPI:
             ValueError: If video URL is invalid, not live, or has no live chat
             requests.RequestException: If API request fails
         """
-        print(f"[DEBUG] Starting get_user_entries for URL: {video_url}")
         video_id = extract_video_id(video_url)
-        print(f"[DEBUG] Extracted video ID: {video_id}")
         
         # Step 1: Check if video is live
-        print("[DEBUG] Step 1: Checking if video is live...")
         try:
             is_live = self.check_if_live(video_id)
-            print(f"[DEBUG] Video is live: {is_live}")
         except requests.exceptions.RequestException as e:
-            print(f"[DEBUG] Error checking if live: {e}")
             raise e
         
         if not is_live:
@@ -317,12 +302,9 @@ class YouTubeAPI:
             )
         
         # Step 2: Get liveChatId
-        print("[DEBUG] Step 2: Getting liveChatId...")
         try:
             live_chat_id = self.get_live_chat_id(video_id)
-            print(f"[DEBUG] Live chat ID: {live_chat_id}")
         except requests.exceptions.RequestException as e:
-            print(f"[DEBUG] Error getting liveChatId: {e}")
             raise e
         
         if not live_chat_id:
@@ -331,12 +313,9 @@ class YouTubeAPI:
             )
         
         # Step 3: Fetch live chat messages
-        print("[DEBUG] Step 3: Fetching live chat messages...")
         try:
             messages, total_results = self.get_live_chat_messages(live_chat_id, max_entries_per_user)
-            print(f"[DEBUG] Fetched {len(messages)} messages, total_results: {total_results}")
         except (ValueError, requests.exceptions.RequestException) as e:
-            print(f"[DEBUG] Error fetching messages: {e}")
             raise e
         
         if not messages:

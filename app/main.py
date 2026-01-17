@@ -70,17 +70,14 @@ async def youtube_raffle(request: RaffleRequest):
     """
     import asyncio
     try:
-        print(f"[DEBUG] Received raffle request for URL: {request.video_url}")
         # Run the blocking API call in a thread pool to avoid blocking the event loop
         loop = asyncio.get_event_loop()
         api = get_youtube_api()
-        print("[DEBUG] Starting get_user_entries in executor...")
         entries, user_comments_map, total_comments = await loop.run_in_executor(
             None, 
             api.get_user_entries, 
             request.video_url
         )
-        print(f"[DEBUG] Got {len(entries)} entries from API, total_comments: {total_comments}")
         
         if not entries:
             raise HTTPException(

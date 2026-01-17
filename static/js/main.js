@@ -68,7 +68,6 @@ function initApp() {
                     });
 
                     const streamsData = await streamsResponse.json();
-                    console.log('Channel stats:', streamsData.channel);
                     updateChannelStats(streamsData.channel);
 
                     if (!streamsResponse.ok) {
@@ -122,14 +121,12 @@ function initApp() {
             }
         });
     } else {
-        console.log('Starting live stream check...');
         //const CHANNEL_URL = 'https://www.youtube.com/@prodiscus_official';
         const CHANNEL_URL = 'https://www.youtube.com/@KawaiiGames';
         const statusText = document.getElementById('main-status-text');
         const startRaffleBtn = document.getElementById('start-raffle-btn');
 
         if (!streamSelectContainer || !streamSelect || !startRaffleBtn) {
-            console.log('Missing elements');
             return;
         }
 
@@ -138,7 +135,6 @@ function initApp() {
 
         (async () => {
             try {
-                console.log('Checking for active live streams...');
                 showLoadingAnimation('Checking for active live streams...');
                 const streamsResponse = await fetch('/api/youtube/channel/streams', {
                     method: 'POST',
@@ -149,9 +145,7 @@ function initApp() {
                         channel_url: CHANNEL_URL
                     })
                 });
-                console.log('Streams response:', streamsResponse);
                 const streamsData = await streamsResponse.json();
-                console.log('Channel stats:', streamsData.channel);
                 updateChannelStats(streamsData.channel);
 
                 if (!streamsResponse.ok) {
