@@ -121,8 +121,7 @@ function initApp() {
             }
         });
     } else {
-        //const CHANNEL_URL = 'https://www.youtube.com/@prodiscus_official';
-        const CHANNEL_URL = 'https://www.youtube.com/@KawaiiGames';
+        const CHANNEL_URL = 'https://www.youtube.com/@prodiscus_official';
         const statusText = document.getElementById('main-status-text');
         const startRaffleBtn = document.getElementById('start-raffle-btn');
 
@@ -236,6 +235,9 @@ if (document.readyState === 'loading') {
     safeInitApp();
 }
 
+let pendingWinnerData = null;
+let awaitingReveal = false;
+
 async function runRaffle(videoUrl) {
     try {
         // Show loading animation while fetching
@@ -265,16 +267,19 @@ async function runRaffle(videoUrl) {
             throw new Error(data.detail || 'An error occurred');
         }
         
-        // Hide loading, show raffle animation
+        // Hide loading, show raffle animation and wait for click to reveal
         hideLoadingAnimation();
+        pendingWinnerData = data;
+        awaitingReveal = true;
+        const startRaffleBtn = document.getElementById('start-raffle-btn');
+        const runRaffleBtn = document.getElementById('run-raffle-btn');
+        if (startRaffleBtn) {
+            startRaffleBtn.disabled = true;
+        }
+        if (runRaffleBtn) {
+            runRaffleBtn.disabled = true;
+        }
         showRaffleAnimation();
-        
-        // Wait for raffle animation (2-3 seconds)
-        await new Promise(resolve => setTimeout(resolve, 2500));
-        
-        // Hide animation and show results
-        hideRaffleAnimation();
-        showResults(data);
         
     } catch (error) {
         hideLoadingAnimation();
@@ -298,6 +303,8 @@ function showLoadingAnimation(message) {
     container.classList.remove('hidden');
     spinner.classList.remove('hidden');
     spinner.classList.add('spinning');
+    spinner.style.borderColor = '#f97316';
+    spinner.style.borderTopColor = 'transparent';
     if (readyImg) {
         readyImg.classList.add('hidden');
     }
@@ -420,42 +427,14 @@ function showRaffleAnimation() {
     }
     if (text) {
         text.classList.remove('hidden');
+        text.textContent = 'Klikkaa paljastaaksesi voittaja!';
     }
-    text.textContent = 'Valitaan voittajaa...';
     if (raffleImg) {
         raffleImg.classList.remove('hidden');
         raffleImg.classList.add('raffle-spinning');
         raffleImg.style.animationDuration = '1.2s';
-        if (window.__raffleSpinInterval) {
-            clearInterval(window.__raffleSpinInterval);
-        }
-        let duration = 1.2;
-        window.__raffleSpinInterval = setInterval(() => {
-            duration -= 0.15;
-            if (duration <= 0.3) {
-                duration = 0.3;
-                clearInterval(window.__raffleSpinInterval);
-                window.__raffleSpinInterval = null;
-            }
-            raffleImg.style.animationDuration = `${duration}s`;
-        }, 200);
+        startRaffleSpinCycle(raffleImg);
     }
-    
-    // Add some excitement with text animation
-    let countdown = 3;
-    const countdownInterval = setInterval(() => {
-        if (countdown > 0) {
-            text.textContent = `Valitaan voittajaa... ${countdown}`;
-            text.classList.add('countdown-animation');
-            setTimeout(() => {
-                text.classList.remove('countdown-animation');
-            }, 500);
-            countdown--;
-        } else {
-            clearInterval(countdownInterval);
-            text.textContent = 'Ja voittaja on...';
-        }
-    }, 600);
 }
 
 function hideRaffleAnimation() {
@@ -471,7 +450,79 @@ function hideRaffleAnimation() {
         clearInterval(window.__raffleSpinInterval);
         window.__raffleSpinInterval = null;
     }
+    if (window.__raffleSpinRaf) {
+        cancelAnimationFrame(window.__raffleSpinRaf);
+        window.__raffleSpinRaf = null;
+    }
 }
+
+function startRaffleSpinCycle(raffleImg) {
+    if (window.__raffleSpinInterval) {
+        clearInterval(window.__raffleSpinInterval);
+        window.__raffleSpinInterval = null;
+    }
+    if (window.__raffleSpinRaf) {
+        cancelAnimationFrame(window.__raffleSpinRaf);
+        window.__raffleSpinRaf = null;
+    }
+
+    const minDuration = 0.6;  // fastest (slower than before)
+    const maxDuration = 1.9;  // slowest
+    const range = maxDuration - minDuration;
+    const cycleMs = 4200;
+    const start = performance.now();
+
+    const tick = (now) => {
+        const elapsed = now - start;
+        const phase = (elapsed % cycleMs) / cycleMs; // 0..1
+        const smoothstep = (t) => t * t * (3 - 2 * t);
+
+        let duration;
+        if (phase < 0.15) {
+            // accelerate to fast
+            const t = smoothstep(phase / 0.15);
+            duration = maxDuration - range * t;
+        } else if (phase < 0.55) {
+            // hold fast
+            duration = minDuration;
+        } else if (phase < 0.7) {
+            // decelerate to slow
+            const t = smoothstep((phase - 0.55) / 0.15);
+            duration = minDuration + range * t;
+        } else {
+            // hold slow
+            duration = maxDuration;
+        }
+        raffleImg.style.animationDuration = `${duration.toFixed(2)}s`;
+        window.__raffleSpinRaf = requestAnimationFrame(tick);
+    };
+
+    window.__raffleSpinRaf = requestAnimationFrame(tick);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const animationContainer = document.getElementById('animation-container');
+    if (!animationContainer) {
+        return;
+    }
+    animationContainer.addEventListener('click', () => {
+        if (!awaitingReveal || !pendingWinnerData) {
+            return;
+        }
+        awaitingReveal = false;
+        hideRaffleAnimation();
+        showResults(pendingWinnerData);
+        pendingWinnerData = null;
+        const startRaffleBtn = document.getElementById('start-raffle-btn');
+        const runRaffleBtn = document.getElementById('run-raffle-btn');
+        if (startRaffleBtn) {
+            startRaffleBtn.disabled = false;
+        }
+        if (runRaffleBtn) {
+            runRaffleBtn.disabled = false;
+        }
+    });
+});
 
 function showResults(data) {
     const container = document.getElementById('results-container');
