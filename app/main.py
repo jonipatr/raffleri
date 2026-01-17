@@ -49,6 +49,13 @@ async def read_root(request: Request):
     return HTMLResponse(content=html_content)
 
 
+@app.get("/testing", response_class=HTMLResponse)
+async def read_testing(request: Request):
+    """Serve the testing HTML page with URL type selection."""
+    html_content = render_template("testing.html", {"request": request})
+    return HTMLResponse(content=html_content)
+
+
 @app.post("/api/youtube/entries", response_model=RaffleResponse)
 async def youtube_raffle(request: RaffleRequest):
     """

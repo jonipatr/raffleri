@@ -1,9 +1,10 @@
 <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAFFLERi - Weighted Comment Raffle</title>
+    <title>RAFFLERi - Testing</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -101,14 +102,51 @@
             <!-- Header -->
             <div class="text-center mb-10">
                 <h1 class="text-5xl font-bold text-gray-800 mb-2">RAFFLERi</h1>
-                <p class="text-gray-600 text-lg font-medium">Prodiscus podcast live arvonta</p>
+                <p class="text-gray-600 text-lg font-medium">Testing Mode</p>
             </div>
             
             <!-- Main Card -->
             <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-8 mb-6">
-                <!-- Info Text -->
-                <div class="mb-6 text-center">
-                    <p id="main-status-text" class="text-gray-600 text-sm">RAFFLERi yrittää hakea livestreamin tiedot.<br><br>Jos livestream löytyy, arvonta-nappi muuttuu oranssiksi ja viikon voittaja löytyy napin painalluksella!</p>
+                <!-- URL Type Selection -->
+                <div class="mb-6">
+                    <label class="block text-gray-700 font-semibold mb-2">URL Type</label>
+                    <div class="flex gap-6">
+                        <label class="flex items-center cursor-pointer">
+                            <input 
+                                type="radio" 
+                                name="url-type" 
+                                value="video" 
+                                id="url-type-video"
+                                class="mr-2 w-4 h-4 text-orange-500 border-gray-300 focus:ring-orange-500"
+                                checked
+                            />
+                            <span class="text-gray-700 font-medium">Video URL</span>
+                        </label>
+                        <label class="flex items-center cursor-pointer">
+                            <input 
+                                type="radio" 
+                                name="url-type" 
+                                value="channel" 
+                                id="url-type-channel"
+                                class="mr-2 w-4 h-4 text-orange-500 border-gray-300 focus:ring-orange-500"
+                            />
+                            <span class="text-gray-700 font-medium">Channel URL</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- URL Input -->
+                <div class="mb-6">
+                    <label for="video-url" id="url-label" class="block text-gray-700 font-semibold mb-2">
+                        YouTube Live Stream URL
+                    </label>
+                    <input 
+                        type="text" 
+                        id="video-url" 
+                        placeholder="https://www.youtube.com/watch?v=..."
+                        class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition"
+                    />
+                    <p class="text-sm text-gray-500 mt-2" id="url-help-text">Enter a URL for an active YouTube live stream</p>
                 </div>
                 
                 <!-- Stream Selection Dropdown (hidden by default) -->
@@ -120,22 +158,16 @@
                         id="stream-select" 
                         class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition"
                     >
-                        <option value="">Select a stream...</option>
+                        <option value="">Loading streams...</option>
                     </select>
                 </div>
-
-                <!-- Ready-to-raffle Image (hidden by default) -->
-                <div id="ready-to-raffle-img" class="mb-6 hidden text-center">
-                    <img src="/static/discus.png" alt="Ready to raffle" class="mx-auto h-12 w-auto opacity-90">
-                </div>
                 
-                <!-- Start Raffle Button (hidden by default) -->
+                <!-- Run Raffle Button -->
                 <button 
-                    id="start-raffle-btn"
-                    class="w-full py-4 orange-bg orange-hover text-white font-semibold text-lg rounded-lg transition-all shadow-md hover:shadow-lg transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled
+                    id="run-raffle-btn"
+                    class="w-full py-4 orange-bg orange-hover text-white font-semibold text-lg rounded-lg transition-all shadow-md hover:shadow-lg transform hover:scale-[1.02] active:scale-[0.98]"
                 >
-                    Start Raffle
+                    Run Raffle
                 </button>
             </div>
             
