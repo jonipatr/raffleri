@@ -123,8 +123,8 @@ function initApp() {
         });
     } else {
         console.log('Starting live stream check...');
-        const CHANNEL_URL = 'https://www.youtube.com/@prodiscus_official';
-        //const CHANNEL_URL = 'https://www.youtube.com/@KawaiiGames';
+        //const CHANNEL_URL = 'https://www.youtube.com/@prodiscus_official';
+        const CHANNEL_URL = 'https://www.youtube.com/@KawaiiGames';
         const statusText = document.getElementById('main-status-text');
         const startRaffleBtn = document.getElementById('start-raffle-btn');
 
@@ -299,6 +299,7 @@ function showLoadingAnimation(message) {
     const spinner = document.getElementById('spinner');
     const readyImg = document.getElementById('ready-to-raffle-img');
     const notReadyImg = document.getElementById('not-ready-img');
+    const raffleImg = document.getElementById('raffle-spin-img');
     
     container.classList.remove('hidden');
     spinner.classList.remove('hidden');
@@ -309,10 +310,14 @@ function showLoadingAnimation(message) {
     if (notReadyImg) {
         notReadyImg.classList.add('hidden');
     }
+    if (raffleImg) {
+        raffleImg.classList.add('hidden');
+        raffleImg.classList.remove('raffle-spinning');
+    }
     if (text) {
         text.classList.remove('hidden');
     }
-    text.textContent = message || 'Fetching live chat messages...';
+    text.textContent = message || 'Haetaan kommentteja...';
 }
 
 function hideLoadingAnimation() {
@@ -327,6 +332,7 @@ function showStatusInAnimation(message) {
     const spinner = document.getElementById('spinner');
     const readyImg = document.getElementById('ready-to-raffle-img');
     const notReadyImg = document.getElementById('not-ready-img');
+    const raffleImg = document.getElementById('raffle-spin-img');
 
     container.classList.remove('hidden');
     spinner.classList.add('hidden');
@@ -336,6 +342,10 @@ function showStatusInAnimation(message) {
     }
     if (notReadyImg) {
         notReadyImg.classList.add('hidden');
+    }
+    if (raffleImg) {
+        raffleImg.classList.add('hidden');
+        raffleImg.classList.remove('raffle-spinning');
     }
     if (text) {
         text.classList.remove('hidden');
@@ -349,6 +359,7 @@ function showReadyInAnimation() {
     const spinner = document.getElementById('spinner');
     const readyImg = document.getElementById('ready-to-raffle-img');
     const notReadyImg = document.getElementById('not-ready-img');
+    const raffleImg = document.getElementById('raffle-spin-img');
 
     container.classList.remove('hidden');
     spinner.classList.add('hidden');
@@ -363,6 +374,10 @@ function showReadyInAnimation() {
     if (notReadyImg) {
         notReadyImg.classList.add('hidden');
     }
+    if (raffleImg) {
+        raffleImg.classList.add('hidden');
+        raffleImg.classList.remove('raffle-spinning');
+    }
 }
 
 function showNotReadyInAnimation() {
@@ -371,6 +386,7 @@ function showNotReadyInAnimation() {
     const spinner = document.getElementById('spinner');
     const readyImg = document.getElementById('ready-to-raffle-img');
     const notReadyImg = document.getElementById('not-ready-img');
+    const raffleImg = document.getElementById('raffle-spin-img');
 
     container.classList.remove('hidden');
     spinner.classList.add('hidden');
@@ -385,6 +401,10 @@ function showNotReadyInAnimation() {
     if (notReadyImg) {
         notReadyImg.classList.remove('hidden');
     }
+    if (raffleImg) {
+        raffleImg.classList.add('hidden');
+        raffleImg.classList.remove('raffle-spinning');
+    }
 }
 
 function showRaffleAnimation() {
@@ -392,11 +412,12 @@ function showRaffleAnimation() {
     const spinner = document.getElementById('spinner');
     const readyImg = document.getElementById('ready-to-raffle-img');
     const notReadyImg = document.getElementById('not-ready-img');
+    const raffleImg = document.getElementById('raffle-spin-img');
     
     // Make sure spinner is visible and change to raffle animation
-    spinner.classList.remove('hidden');
+    spinner.classList.add('hidden');
     spinner.classList.remove('spinning');
-    spinner.classList.add('pulsing');
+    spinner.classList.remove('pulsing');
     if (readyImg) {
         readyImg.classList.add('hidden');
     }
@@ -406,13 +427,31 @@ function showRaffleAnimation() {
     if (text) {
         text.classList.remove('hidden');
     }
-    text.textContent = 'Selecting winner...';
+    text.textContent = 'Valitaan voittajaa...';
+    if (raffleImg) {
+        raffleImg.classList.remove('hidden');
+        raffleImg.classList.add('raffle-spinning');
+        raffleImg.style.animationDuration = '1.2s';
+        if (window.__raffleSpinInterval) {
+            clearInterval(window.__raffleSpinInterval);
+        }
+        let duration = 1.2;
+        window.__raffleSpinInterval = setInterval(() => {
+            duration -= 0.15;
+            if (duration <= 0.3) {
+                duration = 0.3;
+                clearInterval(window.__raffleSpinInterval);
+                window.__raffleSpinInterval = null;
+            }
+            raffleImg.style.animationDuration = `${duration}s`;
+        }, 200);
+    }
     
     // Add some excitement with text animation
     let countdown = 3;
     const countdownInterval = setInterval(() => {
         if (countdown > 0) {
-            text.textContent = `Selecting winner... ${countdown}`;
+            text.textContent = `Valitaan voittajaa... ${countdown}`;
             text.classList.add('countdown-animation');
             setTimeout(() => {
                 text.classList.remove('countdown-animation');
@@ -420,7 +459,7 @@ function showRaffleAnimation() {
             countdown--;
         } else {
             clearInterval(countdownInterval);
-            text.textContent = 'And the winner is...';
+            text.textContent = 'Ja voittaja on...';
         }
     }, 600);
 }
@@ -428,7 +467,16 @@ function showRaffleAnimation() {
 function hideRaffleAnimation() {
     document.getElementById('animation-container').classList.add('hidden');
     const spinner = document.getElementById('spinner');
+    const raffleImg = document.getElementById('raffle-spin-img');
     spinner.classList.remove('pulsing');
+    if (raffleImg) {
+        raffleImg.classList.add('hidden');
+        raffleImg.classList.remove('raffle-spinning');
+    }
+    if (window.__raffleSpinInterval) {
+        clearInterval(window.__raffleSpinInterval);
+        window.__raffleSpinInterval = null;
+    }
 }
 
 function showResults(data) {
