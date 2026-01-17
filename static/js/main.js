@@ -68,6 +68,8 @@ function initApp() {
                     });
 
                     const streamsData = await streamsResponse.json();
+                    console.log('Channel stats:', streamsData.channel);
+                    updateChannelStats(streamsData.channel);
 
                     if (!streamsResponse.ok) {
                         throw new Error(streamsData.detail || 'Failed to fetch active streams');
@@ -121,11 +123,10 @@ function initApp() {
         });
     } else {
         console.log('Starting live stream check...');
-        //const CHANNEL_URL = 'https://www.youtube.com/@prodiscus_official';
-        const CHANNEL_URL = 'https://www.youtube.com/@KawaiiGames';
+        const CHANNEL_URL = 'https://www.youtube.com/@prodiscus_official';
+        //const CHANNEL_URL = 'https://www.youtube.com/@KawaiiGames';
         const statusText = document.getElementById('main-status-text');
         const startRaffleBtn = document.getElementById('start-raffle-btn');
-        const readyToRaffleImg = document.getElementById('ready-to-raffle-img');
 
         if (!streamSelectContainer || !streamSelect || !startRaffleBtn) {
             console.log('Missing elements');
@@ -133,9 +134,7 @@ function initApp() {
         }
 
         startRaffleBtn.disabled = true;
-        if (readyToRaffleImg) {
-            readyToRaffleImg.classList.add('hidden');
-        }
+        showStatusInAnimation('Checking for active live streams...');
 
         (async () => {
             try {
@@ -152,6 +151,8 @@ function initApp() {
                 });
                 console.log('Streams response:', streamsResponse);
                 const streamsData = await streamsResponse.json();
+                console.log('Channel stats:', streamsData.channel);
+                updateChannelStats(streamsData.channel);
 
                 if (!streamsResponse.ok) {
                     hideLoadingAnimation();
@@ -165,15 +166,13 @@ function initApp() {
                 if (!streamsData.streams || streamsData.streams.length === 0) {
                     // Small delay so the check doesn't look like nothing happened
                     await new Promise((resolve) => setTimeout(resolve, 800));
-                    showStatusInAnimation('No active live streams found on Prodiscus channel.');
+                    showNotReadyInAnimation();
                     startRaffleBtn.disabled = true;
-                    if (readyToRaffleImg) {
-                        readyToRaffleImg.classList.add('hidden');
-                    }
                     return;
                 }
 
                 hideLoadingAnimation();
+                showReadyInAnimation();
 
                 let selectedVideoUrl = null;
 
@@ -193,22 +192,15 @@ function initApp() {
                         if (selectedUrl) {
                             selectedVideoUrl = selectedUrl;
                             startRaffleBtn.disabled = false;
-                            if (readyToRaffleImg) {
-                                readyToRaffleImg.classList.remove('hidden');
-                            }
                         } else {
                             startRaffleBtn.disabled = true;
-                            if (readyToRaffleImg) {
-                                readyToRaffleImg.classList.add('hidden');
-                            }
+                            showReadyInAnimation();
                         }
                     });
                 } else {
                     selectedVideoUrl = streamsData.streams[0].video_url;
                     startRaffleBtn.disabled = false;
-                    if (readyToRaffleImg) {
-                        readyToRaffleImg.classList.remove('hidden');
-                    }
+                    showReadyInAnimation();
                 }
 
                 startRaffleBtn.addEventListener('click', async () => {
@@ -221,9 +213,7 @@ function initApp() {
                 hideLoadingAnimation();
                 showError(error.message || 'An error occurred while checking for live streams');
                 startRaffleBtn.disabled = true;
-                if (readyToRaffleImg) {
-                    readyToRaffleImg.classList.add('hidden');
-                }
+                showStatusInAnimation('Unable to check live streams right now.');
             }
         })();
     }
@@ -307,10 +297,21 @@ function showLoadingAnimation(message) {
     const container = document.getElementById('animation-container');
     const text = document.getElementById('animation-text');
     const spinner = document.getElementById('spinner');
+    const readyImg = document.getElementById('ready-to-raffle-img');
+    const notReadyImg = document.getElementById('not-ready-img');
     
     container.classList.remove('hidden');
     spinner.classList.remove('hidden');
     spinner.classList.add('spinning');
+    if (readyImg) {
+        readyImg.classList.add('hidden');
+    }
+    if (notReadyImg) {
+        notReadyImg.classList.add('hidden');
+    }
+    if (text) {
+        text.classList.remove('hidden');
+    }
     text.textContent = message || 'Fetching live chat messages...';
 }
 
@@ -324,21 +325,87 @@ function showStatusInAnimation(message) {
     const container = document.getElementById('animation-container');
     const text = document.getElementById('animation-text');
     const spinner = document.getElementById('spinner');
+    const readyImg = document.getElementById('ready-to-raffle-img');
+    const notReadyImg = document.getElementById('not-ready-img');
 
     container.classList.remove('hidden');
     spinner.classList.add('hidden');
     spinner.classList.remove('spinning');
+    if (readyImg) {
+        readyImg.classList.add('hidden');
+    }
+    if (notReadyImg) {
+        notReadyImg.classList.add('hidden');
+    }
+    if (text) {
+        text.classList.remove('hidden');
+    }
     text.textContent = message;
+}
+
+function showReadyInAnimation() {
+    const container = document.getElementById('animation-container');
+    const text = document.getElementById('animation-text');
+    const spinner = document.getElementById('spinner');
+    const readyImg = document.getElementById('ready-to-raffle-img');
+    const notReadyImg = document.getElementById('not-ready-img');
+
+    container.classList.remove('hidden');
+    spinner.classList.add('hidden');
+    spinner.classList.remove('spinning');
+    if (text) {
+        text.textContent = '';
+        text.classList.add('hidden');
+    }
+    if (readyImg) {
+        readyImg.classList.remove('hidden');
+    }
+    if (notReadyImg) {
+        notReadyImg.classList.add('hidden');
+    }
+}
+
+function showNotReadyInAnimation() {
+    const container = document.getElementById('animation-container');
+    const text = document.getElementById('animation-text');
+    const spinner = document.getElementById('spinner');
+    const readyImg = document.getElementById('ready-to-raffle-img');
+    const notReadyImg = document.getElementById('not-ready-img');
+
+    container.classList.remove('hidden');
+    spinner.classList.add('hidden');
+    spinner.classList.remove('spinning');
+    if (text) {
+        text.textContent = 'Livestreamiä ei löytynyt';
+        text.classList.remove('hidden');
+    }
+    if (readyImg) {
+        readyImg.classList.add('hidden');
+    }
+    if (notReadyImg) {
+        notReadyImg.classList.remove('hidden');
+    }
 }
 
 function showRaffleAnimation() {
     const text = document.getElementById('animation-text');
     const spinner = document.getElementById('spinner');
+    const readyImg = document.getElementById('ready-to-raffle-img');
+    const notReadyImg = document.getElementById('not-ready-img');
     
     // Make sure spinner is visible and change to raffle animation
     spinner.classList.remove('hidden');
     spinner.classList.remove('spinning');
     spinner.classList.add('pulsing');
+    if (readyImg) {
+        readyImg.classList.add('hidden');
+    }
+    if (notReadyImg) {
+        notReadyImg.classList.add('hidden');
+    }
+    if (text) {
+        text.classList.remove('hidden');
+    }
     text.textContent = 'Selecting winner...';
     
     // Add some excitement with text animation
@@ -400,4 +467,45 @@ function showError(message) {
     
     errorMessage.textContent = message;
     container.classList.remove('hidden');
+}
+
+function updateChannelStats(channel) {
+    const statsContainer = document.getElementById('channel-stats');
+    if (!statsContainer) {
+        return;
+    }
+
+    if (!channel) {
+        statsContainer.classList.add('hidden');
+        return;
+    }
+
+    const title = document.getElementById('channel-title');
+    const subscribers = document.getElementById('channel-subscribers');
+    const podcasts = document.getElementById('channel-podcasts');
+    const podcastsBlock = document.getElementById('channel-podcasts-block');
+
+    const formatNumber = (value) => {
+        if (value === null || value === undefined) {
+            return '-';
+        }
+        return Number(value).toLocaleString('fi-FI');
+    };
+
+    if (title) {
+        title.textContent = channel.title || 'Channel';
+    }
+    if (subscribers) {
+        subscribers.textContent = formatNumber(channel.subscriber_count);
+    }
+    if (podcasts) {
+        podcasts.textContent = formatNumber(channel.podcast_count);
+    }
+
+    const hasPodcasts = Array.isArray(channel.podcasts) && channel.podcasts.length > 0;
+    if (podcastsBlock) {
+        podcastsBlock.classList.toggle('hidden', !hasPodcasts);
+    }
+
+    statsContainer.classList.remove('hidden');
 }

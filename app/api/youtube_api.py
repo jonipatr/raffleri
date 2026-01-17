@@ -11,8 +11,11 @@ class YouTubeAPI:
     VIDEOS_URL = "https://www.googleapis.com/youtube/v3/videos"
     LIVECHAT_URL = "https://www.googleapis.com/youtube/v3/liveChat/messages"
     SEARCH_URL = "https://www.googleapis.com/youtube/v3/search"
+    CHANNELS_URL = "https://www.googleapis.com/youtube/v3/channels"
+    PLAYLISTS_URL = "https://www.googleapis.com/youtube/v3/playlists"
+    PLAYLIST_ITEMS_URL = "https://www.googleapis.com/youtube/v3/playlistItems"
     
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, podcast_playlist_id: Optional[str] = None):
         """
         Initialize YouTube API client.
         
@@ -20,6 +23,7 @@ class YouTubeAPI:
             api_key: YouTube Data API v3 key
         """
         self.api_key = api_key
+        self.podcast_playlist_id = podcast_playlist_id
     
     def check_if_live(self, video_id: str) -> bool:
         """
@@ -394,17 +398,15 @@ class YouTubeAPI:
         Returns:
             Channel ID if found, None otherwise
         """
-        # Use search.list to find channel by handle
+        # Use channels.list with forHandle to resolve handle directly
         params = {
-            'part': 'snippet',
-            'q': handle,
-            'type': 'channel',
-            'maxResults': 1,
+            'part': 'id',
+            'forHandle': handle,
             'key': self.api_key
         }
         
         try:
-            response = requests.get(self.SEARCH_URL, params=params)
+            response = requests.get(self.CHANNELS_URL, params=params)
             response.raise_for_status()
             data = response.json()
             
@@ -413,10 +415,216 @@ class YouTubeAPI:
             
             # Get channel ID from search result
             channel = data['items'][0]
-            channel_id = channel.get('id', {}).get('channelId')
+            channel_id = channel.get('id')
             return channel_id
         except requests.exceptions.RequestException:
             return None
+
+    def get_channel_stats(self, channel_url: Optional[str] = None, channel_id: Optional[str] = None) -> Dict:
+        """
+        Fetch basic channel statistics and metadata.
+        
+        Args:
+            channel_url: YouTube channel URL (e.g., https://www.youtube.com/@channelname)
+            channel_id: YouTube channel ID (alternative to channel_url)
+            
+        Returns:
+            Dictionary with title and statistics (subscriber_count, video_count, view_count)
+        """
+        if not channel_url and not channel_id:
+            raise ValueError("Either channel_url or channel_id must be provided")
+        
+        # Extract channel_id from URL if needed
+        if channel_url and not channel_id:
+            channel_id = extract_channel_id(channel_url)
+            
+            # If extraction failed, try to resolve @channelname handle
+            if not channel_id:
+                import re
+                handle_match = re.search(r'@([a-zA-Z0-9_-]+)', channel_url)
+                if handle_match:
+                    handle = handle_match.group(1)
+                    channel_id = self._resolve_channel_handle(handle)
+            
+            if not channel_id:
+                raise ValueError("Could not extract or resolve channel ID from URL")
+        
+        params = {
+            'part': 'snippet,statistics',
+            'id': channel_id,
+            'key': self.api_key
+        }
+        
+        try:
+            response = requests.get(self.CHANNELS_URL, params=params)
+            response.raise_for_status()
+            data = response.json()
+        except requests.exceptions.RequestException as e:
+            raise requests.exceptions.RequestException(
+                f"Failed to fetch channel statistics: {str(e)}"
+            )
+        
+        if 'error' in data:
+            error = data['error']
+            error_msg = error.get('message', 'Unknown error')
+            error_code = error.get('code', 'Unknown')
+            raise requests.exceptions.RequestException(
+                f"YouTube API error ({error_code}): {error_msg}"
+            )
+        
+        items = data.get('items', [])
+        if not items:
+            return {}
+        
+        item = items[0]
+        snippet = item.get('snippet', {})
+        stats = item.get('statistics', {})
+        
+        def to_int(value: Optional[str]) -> Optional[int]:
+            try:
+                return int(value) if value is not None else None
+            except (ValueError, TypeError):
+                return None
+        
+        podcast_items = []
+        if self.podcast_playlist_id:
+            podcast_items = self._get_playlist_items(self.podcast_playlist_id, max_items=200)
+
+        return {
+            'title': snippet.get('title'),
+            'subscriber_count': to_int(stats.get('subscriberCount')),
+            'video_count': to_int(stats.get('videoCount')),
+            'podcast_count': len(podcast_items),
+            'podcasts': podcast_items
+        }
+
+    def _get_podcast_playlist_items(self, channel_id: str, max_items: int = 200) -> List[Dict]:
+        """
+        Collect podcast episodes from playlists whose titles include "podcast".
+        
+        Args:
+            channel_id: YouTube channel ID
+            max_items: Maximum podcast items to return
+            
+        Returns:
+            List of podcast items (title + video_url)
+        """
+        items: List[Dict] = []
+        seen_video_ids = set()
+        page_token = None
+
+        while True:
+            params = {
+                'part': 'snippet',
+                'channelId': channel_id,
+                'maxResults': 50,
+                'key': self.api_key
+            }
+            if page_token:
+                params['pageToken'] = page_token
+
+            try:
+                response = requests.get(self.PLAYLISTS_URL, params=params)
+                response.raise_for_status()
+                data = response.json()
+            except requests.exceptions.RequestException:
+                return items
+
+            if 'error' in data:
+                return items
+
+            playlist_items = data.get('items', [])
+            for playlist in playlist_items:
+                title = playlist.get('snippet', {}).get('title', '')
+                playlist_id = playlist.get('id')
+                if not playlist_id:
+                    continue
+                if 'podcast' in title.casefold():
+                    self._collect_playlist_videos(
+                        playlist_id,
+                        items,
+                        seen_video_ids,
+                        max_items=max_items
+                    )
+                    if len(items) >= max_items:
+                        return items
+
+            page_token = data.get('nextPageToken')
+            if not page_token:
+                break
+
+        return items
+
+    def _get_playlist_items(self, playlist_id: str, max_items: int = 200) -> List[Dict]:
+        """
+        Collect items from a specific playlist.
+        
+        Args:
+            playlist_id: YouTube playlist ID
+            max_items: Maximum playlist items to return
+            
+        Returns:
+            List of playlist items (title + video_url)
+        """
+        items: List[Dict] = []
+        seen_video_ids = set()
+        self._collect_playlist_videos(
+            playlist_id,
+            items,
+            seen_video_ids,
+            max_items=max_items
+        )
+        return items
+
+    def _collect_playlist_videos(
+        self,
+        playlist_id: str,
+        items: List[Dict],
+        seen_video_ids: set,
+        max_items: int
+    ) -> None:
+        """Append playlist videos into items list (deduped by videoId)."""
+        page_token = None
+
+        while len(items) < max_items:
+            params = {
+                'part': 'snippet,contentDetails',
+                'playlistId': playlist_id,
+                'maxResults': 50,
+                'key': self.api_key
+            }
+            if page_token:
+                params['pageToken'] = page_token
+
+            try:
+                response = requests.get(self.PLAYLIST_ITEMS_URL, params=params)
+                response.raise_for_status()
+                data = response.json()
+            except requests.exceptions.RequestException:
+                return
+
+            if 'error' in data:
+                return
+
+            playlist_items = data.get('items', [])
+            for item in playlist_items:
+                content = item.get('contentDetails', {})
+                video_id = content.get('videoId')
+                if not video_id or video_id in seen_video_ids:
+                    continue
+                snippet = item.get('snippet', {})
+                title = snippet.get('title', 'Untitled')
+                items.append({
+                    'title': title,
+                    'video_url': f"https://www.youtube.com/watch?v={video_id}"
+                })
+                seen_video_ids.add(video_id)
+                if len(items) >= max_items:
+                    return
+
+            page_token = data.get('nextPageToken')
+            if not page_token:
+                break
     
     def get_active_live_streams(self, channel_url: Optional[str] = None, channel_id: Optional[str] = None) -> List[Dict]:
         """

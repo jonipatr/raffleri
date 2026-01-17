@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse
 from jinja2 import Environment, FileSystemLoader
 from dotenv import load_dotenv
 
-from app.models.raffle import RaffleRequest, RaffleResponse, ChannelRequest, ChannelResponse, ChannelStreamsResponse
+from app.models.raffle import RaffleRequest, RaffleResponse, ChannelRequest, ChannelResponse, ChannelStreamsResponse, ChannelStats
 from app.api.youtube_api import YouTubeAPI
 from app.services.raffle import pick_winner
 
@@ -38,7 +38,8 @@ def get_youtube_api():
                 status_code=500,
                 detail="YOUTUBE_API_KEY environment variable is required. Please set it in your .env file or environment variables."
             )
-        youtube_api = YouTubeAPI(youtube_api_key)
+        podcast_playlist_id = os.getenv("PODCAST_PLAYLIST_ID") or "PLTigWTFUFrepryTKKY2Kua5iEYXcCnnEK"
+        youtube_api = YouTubeAPI(youtube_api_key, podcast_playlist_id=podcast_playlist_id)
     return youtube_api
 
 
@@ -166,6 +167,10 @@ async def youtube_channel_streams(request: ChannelRequest):
             channel_url=request.channel_url,
             channel_id=request.channel_id
         )
+        channel_stats_data = api.get_channel_stats(
+            channel_url=request.channel_url,
+            channel_id=request.channel_id
+        )
         
         # Convert to StreamInfo objects
         stream_infos = [
@@ -178,7 +183,11 @@ async def youtube_channel_streams(request: ChannelRequest):
             for stream in streams
         ]
         
-        return ChannelStreamsResponse(streams=stream_infos)
+        channel_stats = None
+        if channel_stats_data:
+            channel_stats = ChannelStats(**channel_stats_data)
+
+        return ChannelStreamsResponse(streams=stream_infos, channel=channel_stats)
     
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

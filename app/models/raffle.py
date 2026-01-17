@@ -47,6 +47,22 @@ class StreamInfo(BaseModel):
     title: str
 
 
+class ChannelStats(BaseModel):
+    """Basic channel statistics and metadata."""
+    title: Optional[str] = None
+    subscriber_count: Optional[int] = None
+    video_count: Optional[int] = None
+    podcast_count: Optional[int] = None
+    podcasts: Optional[List["PodcastItem"]] = None
+
+
+class PodcastItem(BaseModel):
+    """Represents a podcast episode/item."""
+    title: str
+    video_url: str
+
+
 class ChannelStreamsResponse(BaseModel):
     """Response model for channel streams endpoint."""
     streams: list[StreamInfo]
+    channel: Optional[ChannelStats] = None
