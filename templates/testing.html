@@ -189,6 +189,29 @@
                 >
                     Run Raffle
                 </button>
+
+                <!-- Collector Controls -->
+                <div class="mt-4">
+                    <button 
+                        id="start-collecting-btn"
+                        class="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-all shadow-md"
+                        type="button"
+                    >
+                        Start collecting (TEMP)
+                    </button>
+                    <div id="collector-status" class="mt-3 hidden">
+                        <div class="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-900 flex items-center justify-between">
+                            <div class="flex items-center">
+                                <span class="inline-block w-3 h-3 bg-red-500 rounded-full pulsing mr-3"></span>
+                                <span class="font-semibold" id="collector-status-text">Actively collecting comments</span>
+                            </div>
+                            <div>
+                                <span class="font-semibold" id="collector-comment-count">0</span>
+                                <span class="text-red-700">comments</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
             
             <!-- Animation Container -->
@@ -250,6 +273,6 @@
         />
     </footer>
     
-    <script src="/static/js/main.js"></script>
+    <script src="/static/js/main.js?v=collector1"></script>
 </body>
 </html>

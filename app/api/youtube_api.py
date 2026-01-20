@@ -1,3 +1,5 @@
+import os
+import re
 import requests
 import time
 from typing import List, Optional, Dict, Tuple
@@ -24,6 +26,46 @@ class YouTubeAPI:
         """
         self.api_key = api_key
         self.podcast_playlist_id = podcast_playlist_id
+        self.debug_messages = os.getenv("DEBUG_YOUTUBE_MESSAGES") == "1"
+
+    def resolve_channel_id_from_url(self, channel_url: str) -> Optional[str]:
+        """
+        Resolve a channel URL to a channel ID.
+        Supports /channel/ URLs directly and @handle URLs via channels.list(forHandle).
+        """
+        channel_id = extract_channel_id(channel_url)
+        if channel_id:
+            return channel_id
+        handle_match = re.search(r'@([a-zA-Z0-9_-]+)', channel_url or "")
+        if handle_match:
+            handle = handle_match.group(1)
+            return self._resolve_channel_handle(handle)
+        return None
+
+    def get_video_live_metadata(self, video_id: str) -> Dict[str, Optional[str]]:
+        """
+        Fetch combined snippet + liveStreamingDetails to validate cached stream.
+        Returns: {live_broadcast_content, channel_id, active_live_chat_id}
+        """
+        params = {
+            'part': 'snippet,liveStreamingDetails',
+            'id': video_id,
+            'key': self.api_key
+        }
+        response = requests.get(self.VIDEOS_URL, params=params)
+        response.raise_for_status()
+        data = response.json()
+        items = data.get('items', [])
+        if not items:
+            return {"live_broadcast_content": None, "channel_id": None, "active_live_chat_id": None}
+        item = items[0]
+        snippet = item.get("snippet", {}) or {}
+        live_details = item.get("liveStreamingDetails", {}) or {}
+        return {
+            "live_broadcast_content": snippet.get("liveBroadcastContent"),
+            "channel_id": snippet.get("channelId"),
+            "active_live_chat_id": live_details.get("activeLiveChatId")
+        }
     
     def check_if_live(self, video_id: str) -> bool:
         """
@@ -115,6 +157,85 @@ class YouTubeAPI:
         live_chat_id = live_streaming_details.get('activeLiveChatId')
         
         return live_chat_id
+
+    def check_live_chat_active(self, live_chat_id: str) -> bool:
+        """
+        Check if a liveChatId is still active by attempting a minimal fetch.
+        """
+        params = {
+            'liveChatId': live_chat_id,
+            'part': 'snippet,authorDetails',
+            'maxResults': 1,
+            'key': self.api_key
+        }
+        try:
+            response = requests.get(self.LIVECHAT_URL, params=params)
+            response.raise_for_status()
+            data = response.json()
+        except requests.exceptions.HTTPError:
+            try:
+                error_data = response.json()
+                if 'error' in error_data:
+                    error = error_data['error']
+                    error_code = error.get('code', response.status_code)
+                    error_reason = error.get('errors', [{}])[0].get('reason', '') if error.get('errors') else ''
+                    if error_code == 403 and error_reason in ['liveChatEnded', 'liveChatDisabled']:
+                        return False
+            except ValueError:
+                return False
+            return False
+        except requests.exceptions.RequestException:
+            return False
+        
+        if 'error' in data:
+            return False
+        return True
+
+    def fetch_live_chat_page(
+        self,
+        live_chat_id: str,
+        page_token: Optional[str] = None,
+        max_results: int = 200
+    ) -> Tuple[List[Dict], Optional[str], int]:
+        params = {
+            'liveChatId': live_chat_id,
+            'part': 'snippet,authorDetails',
+            'maxResults': min(max(1, max_results), 200),
+            'key': self.api_key
+        }
+        if page_token:
+            params['pageToken'] = page_token
+
+        response = requests.get(self.LIVECHAT_URL, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+
+        items = data.get('items', [])
+        next_page_token = data.get('nextPageToken')
+        polling_interval_ms = data.get('pollingIntervalMillis', 1000)
+
+        messages: List[Dict] = []
+        for item in items:
+            if self.debug_messages:
+                print("TEMP: Live chat message JSON:", item)
+            snippet = item.get('snippet', {})
+            author_details = item.get('authorDetails', {})
+
+            message_type = snippet.get('type', '')
+            if message_type not in ['textMessageEvent', 'superChatEvent', 'superStickerEvent']:
+                continue
+
+            messages.append({
+                'message_id': item.get('id'),
+                'username': author_details.get('displayName', 'Unknown'),
+                'comment_text': snippet.get('displayMessage', ''),
+                'published_at': snippet.get('publishedAt')
+            })
+
+        if not self.debug_messages:
+            print(f"TEMP: fetched {len(messages)} live chat messages")
+
+        return messages, next_page_token, polling_interval_ms
     
     def get_live_chat_messages(
         self,
@@ -141,132 +262,138 @@ class YouTubeAPI:
         messages = []
         page_token = None
         total_results = None  # Will be set from first response
-        max_pages = 5  # 5 pages × 2000 maxResults = 10,000 messages max
+        max_pages = 50  # 50 pages × 200 maxResults = 10,000 messages max
         
         # Use for loop instead of while - max 5 pages (10,000 messages)
-        for page_count in range(1, max_pages + 1):
-            params = {
-                'liveChatId': live_chat_id,
-                'part': 'snippet,authorDetails',
-                'maxResults': 2000,  # Maximum allowed by API to minimize requests
-                'key': self.api_key
-            }
-            
-            if page_token:
-                params['pageToken'] = page_token
-            
-            try:
-                response = requests.get(self.LIVECHAT_URL, params=params)
-                response.raise_for_status()
-                data = response.json()
-            except requests.exceptions.HTTPError as e:
+        try:
+            for page_count in range(1, max_pages + 1):
+                params = {
+                    'liveChatId': live_chat_id,
+                    'part': 'snippet,authorDetails',
+                    'maxResults': 200,  # liveChatMessages.list max
+                    'key': self.api_key
+                }
+                
+                if page_token:
+                    params['pageToken'] = page_token
+                
                 try:
-                    error_data = response.json()
-                    if 'error' in error_data:
-                        error = error_data['error']
-                        error_msg = error.get('message', 'Unknown error')
-                        error_code = error.get('code', response.status_code)
-                        error_reason = error.get('errors', [{}])[0].get('reason', '') if error.get('errors') else ''
-                        
-                        if error_code == 403:
-                            if error_reason == 'liveChatEnded':
-                                raise ValueError(
-                                    "The live chat has ended. This video is no longer live."
-                                )
-                            elif error_reason == 'liveChatDisabled':
-                                raise ValueError(
-                                    "Live chat is not enabled for this broadcast."
-                                )
-                            elif 'too soon' in error_msg.lower() or 'refresh' in error_msg.lower():
-                                # Rate limit error - wait and retry
-                                polling_interval = data.get('pollingIntervalMillis', 5000) / 1000.0  # Convert to seconds
-                                raise requests.exceptions.RequestException(
-                                    f"Rate limit: {error_msg}. Please wait {polling_interval:.1f} seconds before retrying."
-                                )
-                        
+                    # LIVECHAT_URL = "https://www.googleapis.com/youtube/v3/liveChat/messages"
+                    response = requests.get(self.LIVECHAT_URL, params=params)
+                    response.raise_for_status()
+                    data = response.json()
+                except requests.exceptions.HTTPError as e:
+                    try:
+                        error_data = response.json()
+                        if 'error' in error_data:
+                            error = error_data['error']
+                            error_msg = error.get('message', 'Unknown error')
+                            error_code = error.get('code', response.status_code)
+                            error_reason = error.get('errors', [{}])[0].get('reason', '') if error.get('errors') else ''
+                            
+                            if error_code == 403:
+                                if error_reason == 'liveChatEnded':
+                                    raise ValueError(
+                                        "The live chat has ended. This video is no longer live."
+                                    )
+                                elif error_reason == 'liveChatDisabled':
+                                    raise ValueError(
+                                        "Live chat is not enabled for this broadcast."
+                                    )
+                                elif 'too soon' in error_msg.lower() or 'refresh' in error_msg.lower():
+                                    # Rate limit error - wait and retry
+                                    polling_interval = data.get('pollingIntervalMillis', 5000) / 1000.0  # Convert to seconds
+                                    raise requests.exceptions.RequestException(
+                                        f"Rate limit: {error_msg}. Please wait {polling_interval:.1f} seconds before retrying."
+                                    )
+                            
+                            raise requests.exceptions.RequestException(
+                                f"YouTube API error ({error_code}): {error_msg}"
+                            )
+                    except ValueError:
                         raise requests.exceptions.RequestException(
-                            f"YouTube API error ({error_code}): {error_msg}"
+                            f"YouTube API request failed: {response.status_code} {response.reason}"
                         )
-                except ValueError:
+                except requests.exceptions.RequestException as e:
                     raise requests.exceptions.RequestException(
-                        f"YouTube API request failed: {response.status_code} {response.reason}"
+                        f"YouTube API request failed: {str(e)}"
                     )
-            except requests.exceptions.RequestException as e:
-                raise requests.exceptions.RequestException(
-                    f"YouTube API request failed: {str(e)}"
-                )
-            
-            if 'error' in data:
-                error = data['error']
-                error_msg = error.get('message', 'Unknown error')
-                error_code = error.get('code', 'Unknown')
-                raise requests.exceptions.RequestException(
-                    f"YouTube API error ({error_code}): {error_msg}"
-                )
-            
-            # Get total results count from first response (if available)
-            # Note: This may not reflect ALL messages ever sent, only those currently retrievable
-            if total_results is None:
-                page_info = data.get('pageInfo', {})
-                total_results = page_info.get('totalResults')
                 
-                # Check if total results exceeds maximum allowed
-                if total_results and total_results > max_messages:
-                    raise ValueError(
-                        f"This live stream has {total_results:,} messages, which exceeds the maximum "
-                        f"of {max_messages:,} messages allowed. Please try with a stream that has fewer messages."
+                if 'error' in data:
+                    error = data['error']
+                    error_msg = error.get('message', 'Unknown error')
+                    error_code = error.get('code', 'Unknown')
+                    raise requests.exceptions.RequestException(
+                        f"YouTube API error ({error_code}): {error_msg}"
                     )
-            
-            # Process messages
-            items = data.get('items', [])
-            
-            messages_before = len(messages)
-            for item in items:
-                snippet = item.get('snippet', {})
-                author_details = item.get('authorDetails', {})
                 
-                # Get message type - only process text messages
-                message_type = snippet.get('type', '')
-                if message_type not in ['textMessageEvent', 'superChatEvent', 'superStickerEvent']:
-                    continue
+                # Get total results count from first response (if available)
+                # Note: This may not reflect ALL messages ever sent, only those currently retrievable
+                if total_results is None:
+                    page_info = data.get('pageInfo', {})
+                    total_results = page_info.get('totalResults')
+                    
+                    # Check if total results exceeds maximum allowed
+                    if total_results and total_results > max_messages:
+                        raise ValueError(
+                            f"This live stream has {total_results:,} messages, which exceeds the maximum "
+                            f"of {max_messages:,} messages allowed. Please try with a stream that has fewer messages."
+                        )
                 
-                # Get comment text
-                display_message = snippet.get('displayMessage', '')
+                # Process messages
+                items = data.get('items', [])
+                next_page_token = data.get('nextPageToken')
                 
-                # Get author information
-                user_id = author_details.get('channelId')
-                username = author_details.get('displayName', 'Unknown')
+                messages_before = len(messages)
+                for item in items:
+                    if self.debug_messages:
+                        print("TEMP: Live chat message JSON:", item)
+                    snippet = item.get('snippet', {})
+                    author_details = item.get('authorDetails', {})
+                    
+                    # Get message type - only process text messages
+                    message_type = snippet.get('type', '')
+                    if message_type not in ['textMessageEvent', 'superChatEvent', 'superStickerEvent']:
+                        continue
+                    
+                    # Get comment text
+                    display_message = snippet.get('displayMessage', '')
+                    
+                    # Get author information
+                    username = author_details.get('displayName', 'Unknown')
+                    
+                    message = {
+                        'message_id': item.get('id'),
+                        'username': username,
+                        'comment_text': display_message
+                    }
+                    messages.append(message)
                 
-                messages.append({
-                    'user_id': user_id,
-                    'username': username,
-                    'comment_text': display_message
-                })
-            
-            messages_after = len(messages)
-            messages_added = messages_after - messages_before
-            
-            
-            # Stop early if we got 0 messages (no more available)
-            if messages_added == 0 and len(messages) > 0:
-                break
-            
-            # Stop early if we've reached max_messages
-            if len(messages) >= max_messages:
-                break
-            
-            # Get nextPageToken for next iteration (if not on last page)
-            if page_count < max_pages:
-                page_token = data.get('nextPageToken')
-                if not page_token:
+                messages_after = len(messages)
+                messages_added = messages_after - messages_before
+                
+                # Stop early if we got 0 messages (no more available)
+                if messages_added == 0 and len(messages) > 0:
                     break
                 
-                # Respect polling interval to avoid rate limits
-                polling_interval_ms = data.get('pollingIntervalMillis', 1000)  # Default 1 second
-                polling_interval_sec = max(0.5, polling_interval_ms / 1000.0)
-                sleep_time = min(polling_interval_sec, 2.0)  # Cap at 2 seconds max
-                time.sleep(sleep_time)
-        
+                # Stop early if we've reached max_messages
+                if len(messages) >= max_messages:
+                    break
+                
+                # Get nextPageToken for next iteration (if not on last page)
+                if page_count < max_pages:
+                    page_token = next_page_token
+                    if not page_token:
+                        break
+                    
+                    # Respect polling interval to avoid rate limits
+                    polling_interval_ms = data.get('pollingIntervalMillis', 1000)  # Default 1 second
+                    polling_interval_sec = max(0.5, polling_interval_ms / 1000.0)
+                    sleep_time = min(polling_interval_sec, 2.0)  # Cap at 2 seconds max
+                    time.sleep(sleep_time)
+        finally:
+            pass
+
         return messages, total_results
     
     def get_user_entries(
@@ -328,16 +455,14 @@ class YouTubeAPI:
         user_data: Dict[str, Dict] = {}
         
         for message in messages:
-            user_id = message['user_id']
             username = message['username']
             comment_text = message['comment_text']
             
-            # Use user_id as key, fallback to username if no user_id
-            key = user_id if user_id else f"user_{username}"
+            key = f"user_{username}"
             
             if key not in user_data:
                 user_data[key] = {
-                    'user_id': user_id,
+                    'user_id': None,
                     'username': username,
                     'count': 0,
                     'comments': []  # Store all comments for this user
@@ -361,8 +486,8 @@ class YouTubeAPI:
                     entries=user_info['count'],
                     comment_text=None  # Will be set when winner is picked
                 ))
-                # Store comments for this user (keyed by user_id or username)
-                lookup_key = user_info['user_id'] if user_info['user_id'] else user_info['username']
+                # Store comments for this user (keyed by username)
+                lookup_key = user_info['username']
                 user_comments_map[lookup_key] = user_info['comments']
         
         return entries, user_comments_map, total_comments

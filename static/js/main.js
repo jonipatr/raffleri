@@ -6,6 +6,8 @@ function initApp() {
     const streamSelectContainer = document.getElementById('stream-selection-container');
     const streamSelect = document.getElementById('stream-select');
 
+    startKeepAlivePing();
+
     if (isTestingPage) {
         const urlInput = document.getElementById('video-url');
         const urlLabel = document.getElementById('url-label');
@@ -120,6 +122,54 @@ function initApp() {
                 }
             }
         });
+
+        const startCollectingBtn = document.getElementById('start-collecting-btn');
+        if (startCollectingBtn) {
+            startCollectingBtn.addEventListener('click', async () => {
+                const inputUrl = urlInput.value.trim();
+                if (!inputUrl) {
+                    showError('Please enter a URL');
+                    return;
+                }
+
+                try {
+                    if (urlTypeChannel.checked) {
+                        const streamsResponse = await fetch('/api/youtube/channel/streams', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ channel_url: inputUrl })
+                        });
+                        const streamsData = await streamsResponse.json();
+                        if (!streamsResponse.ok) {
+                            throw new Error(streamsData.detail || 'Failed to fetch active streams');
+                        }
+                        if (!streamsData.streams || streamsData.streams.length === 0) {
+                            throw new Error('No active live streams found for this channel');
+                        }
+                        await setCollectorSession(streamsData.streams[0], 'testing', inputUrl);
+                        await startCollector();
+                    } else {
+                        const lcRes = await fetch('/api/youtube/livechatid', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ video_url: inputUrl })
+                        });
+                        const lcData = await lcRes.json();
+                        if (!lcRes.ok) {
+                            throw new Error(lcData.detail || 'Failed to resolve live chat id');
+                        }
+                        await setCollectorSession({
+                            live_chat_id: lcData.live_chat_id,
+                            video_id: lcData.video_id,
+                            video_url: inputUrl
+                        }, 'testing', null);
+                        await startCollector();
+                    }
+                } catch (e) {
+                    showError(e.message || 'Failed to start collecting');
+                }
+            });
+        }
     } else {
         const CHANNEL_URL = 'https://www.youtube.com/@prodiscus_official';
         const statusText = document.getElementById('main-status-text');
@@ -180,11 +230,21 @@ function initApp() {
 
                     streamSelectContainer.classList.remove('hidden');
 
-                    streamSelect.addEventListener('change', () => {
+                    streamSelect.addEventListener('change', async () => {
                         const selectedUrl = streamSelect.value;
                         if (selectedUrl) {
                             selectedVideoUrl = selectedUrl;
                             startRaffleBtn.disabled = false;
+                            const stream = streamsData.streams.find((s) => s.video_url === selectedUrl);
+                            if (stream) {
+                                const lc = await resolveLiveChatId(selectedUrl);
+                                await setCollectorSession({
+                                    live_chat_id: lc.live_chat_id,
+                                    video_id: lc.video_id,
+                                    video_url: selectedUrl
+                                }, 'main', CHANNEL_URL);
+                                await startCollector();
+                            }
                         } else {
                             startRaffleBtn.disabled = true;
                             showReadyInAnimation();
@@ -194,6 +254,13 @@ function initApp() {
                     selectedVideoUrl = streamsData.streams[0].video_url;
                     startRaffleBtn.disabled = false;
                     showReadyInAnimation();
+                    const lc = await resolveLiveChatId(selectedVideoUrl);
+                    await setCollectorSession({
+                        live_chat_id: lc.live_chat_id,
+                        video_id: lc.video_id,
+                        video_url: selectedVideoUrl
+                    }, 'main', CHANNEL_URL);
+                    await startCollector();
                 }
 
                 startRaffleBtn.addEventListener('click', async () => {
@@ -212,6 +279,108 @@ function initApp() {
     }
 }
 
+function startKeepAlivePing() {
+    const fiveMinutes = 5 * 60 * 1000;
+    setInterval(() => {
+        fetch('/health', { method: 'GET', cache: 'no-store' }).catch(() => {});
+    }, fiveMinutes);
+}
+
+let collectorStatusInterval = null;
+
+async function setCollectorSession(stream, origin, channelUrl) {
+    try {
+        const res = await fetch('/api/collector/set_session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                live_chat_id: stream.live_chat_id,
+                video_id: stream.video_id,
+                video_url: stream.video_url,
+                origin: origin,
+                channel_url: channelUrl || null
+            })
+        });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.detail || 'Failed to set collector session');
+        }
+    } catch (_) {}
+}
+
+async function startCollector() {
+    try {
+        const res = await fetch('/api/collector/start', { method: 'POST' });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.detail || 'Failed to start collector');
+        }
+        startCollectorStatusPolling();
+    } catch (e) {
+        showError(e.message || 'Failed to start collecting');
+        // Still poll status: server may have auto-started or may report last_error
+        startCollectorStatusPolling();
+    }
+}
+
+async function resolveLiveChatId(videoUrl) {
+    const res = await fetch('/api/youtube/livechatid', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ video_url: videoUrl })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        throw new Error(data.detail || 'Failed to resolve live chat id');
+    }
+    return data;
+}
+
+async function stopCollector() {
+    try {
+        await fetch('/api/collector/stop', { method: 'POST' });
+    } catch (_) {}
+    stopCollectorStatusPolling();
+    setCollectorUI({ collecting: false, total_comments: 0 });
+}
+
+function startCollectorStatusPolling() {
+    stopCollectorStatusPolling();
+    collectorStatusInterval = setInterval(async () => {
+        try {
+            const res = await fetch('/api/collector/status', { cache: 'no-store' });
+            if (!res.ok) return;
+            const status = await res.json();
+            setCollectorUI(status);
+        } catch (_) {}
+    }, 2000);
+}
+
+function stopCollectorStatusPolling() {
+    if (collectorStatusInterval) {
+        clearInterval(collectorStatusInterval);
+        collectorStatusInterval = null;
+    }
+}
+
+function setCollectorUI(status) {
+    const container = document.getElementById('collector-status');
+    const countEl = document.getElementById('collector-comment-count');
+    const statusTextEl = document.getElementById('collector-status-text');
+    if (!container || !countEl) return;
+
+    const hasError = status && status.last_error;
+    if (status && (status.collecting || hasError)) {
+        container.classList.remove('hidden');
+        countEl.textContent = status.total_comments ?? 0;
+        if (statusTextEl) {
+            statusTextEl.textContent = hasError ? `TEMP: Collector error: ${status.last_error}` : 'Actively collecting comments';
+        }
+    } else {
+        container.classList.add('hidden');
+    }
+}
+
 function safeInitApp() {
     if (window.__raffleriInitRan) {
         return;
@@ -227,6 +396,17 @@ window.addEventListener('error', (event) => {
     }
 });
 
+// Stop background collector + UI polling when navigating away / refreshing.
+// Main page will auto-start again on load.
+window.addEventListener('pagehide', () => {
+    try {
+        stopCollectorStatusPolling();
+    } catch (_) {}
+    try {
+        fetch('/api/collector/stop', { method: 'POST', keepalive: true }).catch(() => {});
+    } catch (_) {}
+});
+
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', safeInitApp);
     // Fallback in case DOMContentLoaded already fired before listener attached
@@ -240,6 +420,7 @@ let awaitingReveal = false;
 
 async function runRaffle(videoUrl) {
     try {
+        await stopCollector();
         // Show loading animation while fetching
         showLoadingAnimation();
         

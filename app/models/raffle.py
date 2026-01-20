@@ -66,3 +66,27 @@ class ChannelStreamsResponse(BaseModel):
     """Response model for channel streams endpoint."""
     streams: list[StreamInfo]
     channel: Optional[ChannelStats] = None
+
+
+class CollectorSetSessionRequest(BaseModel):
+    live_chat_id: str
+    video_id: Optional[str] = None
+    video_url: Optional[str] = None
+    origin: str = Field(default="main", description="Where the request originated: main|testing")
+    channel_url: Optional[str] = None
+
+
+class CollectorStatusResponse(BaseModel):
+    collecting: bool
+    live_chat_id: Optional[str] = None
+    total_comments: int = 0
+    last_error: Optional[str] = None
+
+
+class LiveChatIdRequest(BaseModel):
+    video_url: str
+
+
+class LiveChatIdResponse(BaseModel):
+    video_id: str
+    live_chat_id: str

@@ -145,6 +145,20 @@
                     </select>
                 </div>
 
+                <!-- Collector Status (hidden by default) -->
+                <div id="collector-status" class="mb-4 hidden">
+                    <div class="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-900 flex items-center justify-between">
+                        <div class="flex items-center">
+                            <span id="collector-dot" class="inline-block w-3 h-3 bg-red-500 rounded-full pulsing mr-3"></span>
+                            <span id="collector-status-text" class="font-semibold">Actively collecting comments</span>
+                        </div>
+                        <div>
+                            <span class="font-semibold" id="collector-comment-count">0</span>
+                            <span class="text-red-700">comments</span>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Start Raffle Button (hidden by default) -->
                 <button 
                     id="start-raffle-btn"
@@ -216,6 +230,6 @@
         />
     </footer>
     
-    <script src="/static/js/main.js"></script>
+    <script src="/static/js/main.js?v=collector1"></script>
 </body>
 </html>
