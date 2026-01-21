@@ -171,7 +171,11 @@ function initApp() {
             });
         }
     } else {
-        const CHANNEL_URL = 'https://www.youtube.com/@prodiscus_official';
+        const CHANNEL_URL = window.RAFFLERI_CHANNEL_URL;
+        if (!CHANNEL_URL) {
+            showError('CHANNEL_URL is not configured');
+            return;
+        }
         const statusText = document.getElementById('main-status-text');
         const startRaffleBtn = document.getElementById('start-raffle-btn');
 
@@ -180,11 +184,11 @@ function initApp() {
         }
 
         startRaffleBtn.disabled = true;
-        showStatusInAnimation('Checking for active live streams...');
+        showStatusInAnimation('Etsitään livelähetystä...');
 
         (async () => {
             try {
-                showLoadingAnimation('Checking for active live streams...');
+                showLoadingAnimation('Etsitään livelähetystä...');
                 const streamsResponse = await fetch('/api/youtube/channel/streams', {
                     method: 'POST',
                     headers: {
@@ -374,7 +378,7 @@ function setCollectorUI(status) {
         container.classList.remove('hidden');
         countEl.textContent = status.total_comments ?? 0;
         if (statusTextEl) {
-            statusTextEl.textContent = hasError ? `TEMP: Collector error: ${status.last_error}` : 'Actively collecting comments';
+            statusTextEl.textContent = hasError ? `TEMP: Collector error: ${status.last_error}` : 'Live käynnissä! Kerätään kommentteja...';
         }
     } else {
         container.classList.add('hidden');
@@ -420,7 +424,6 @@ let awaitingReveal = false;
 
 async function runRaffle(videoUrl) {
     try {
-        await stopCollector();
         // Show loading animation while fetching
         showLoadingAnimation();
         
@@ -447,8 +450,9 @@ async function runRaffle(videoUrl) {
         if (!response.ok) {
             throw new Error(data.detail || 'An error occurred');
         }
-        
-        // Hide loading, show raffle animation and wait for click to reveal
+
+        // Show a short preparation countdown before allowing reveal
+        await showPreparationCountdown(3);
         hideLoadingAnimation();
         pendingWinnerData = data;
         awaitingReveal = true;
@@ -471,6 +475,42 @@ async function runRaffle(videoUrl) {
             showError(error.message || 'An error occurred while processing the raffle');
         }
     }
+}
+
+async function showPreparationCountdown(seconds) {
+    const container = document.getElementById('animation-container');
+    const text = document.getElementById('animation-text');
+    const spinner = document.getElementById('spinner');
+    const raffleImg = document.getElementById('raffle-spin-img');
+
+    if (!container || !text || !spinner) {
+        return;
+    }
+
+    container.classList.remove('hidden');
+    if (raffleImg) {
+        raffleImg.classList.add('hidden');
+        raffleImg.classList.remove('raffle-spinning');
+    }
+
+    spinner.classList.remove('hidden');
+    // Use the existing spinning animation during countdown
+    spinner.classList.add('spinning');
+    spinner.classList.remove('pulsing');
+    spinner.style.borderColor = '#f97316';
+    spinner.style.borderTopColor = 'transparent';
+
+    // Prevent reveal click during countdown
+    awaitingReveal = false;
+
+    for (let i = seconds; i > 0; i--) {
+        text.textContent = `Valmistellaan arvontaa... ${i}`;
+        text.classList.add('countdown-animation');
+        await new Promise((resolve) => setTimeout(resolve, 900));
+        text.classList.remove('countdown-animation');
+        await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    text.textContent = 'Valmistellaan arvontaa...';
 }
 
 function showLoadingAnimation(message) {

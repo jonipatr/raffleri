@@ -105,14 +105,14 @@
             <!-- Header -->
             <div class="text-center mb-10">
                 <h1 class="text-5xl font-bold text-gray-800 mb-2">RAFFLERi</h1>
-                <p class="text-gray-600 text-lg font-medium">Prodiscus podcast live arvonta</p>
+                <p class="text-gray-600 text-lg font-medium">Prodiscus podcast livearvonta</p>
             </div>
             
             <!-- Main Card -->
             <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-8 mb-6">
                 <!-- Info Text -->
                 <div class="mb-6 text-center">
-                    <p id="main-status-text" class="text-gray-600 text-sm">RAFFLERi yrittää hakea livestreamin tiedot.<br><br>Jos livestream löytyy, arvonta-nappi muuttuu oranssiksi ja viikon voittaja löytyy napin painalluksella!</p>
+                    <p id="main-status-text" class="text-gray-600 text-sm">RAFFLER yrittää hakea livelähetyksen tiedot.<br><br>Jos livelähetys löytyy näet kommenttien kertymisen reaaliajassa!<br><br>Voittaja selviää napin painalluksella!</p>
                 </div>
 
                 <!-- Channel Stats (hidden by default) -->
@@ -150,11 +150,11 @@
                     <div class="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-900 flex items-center justify-between">
                         <div class="flex items-center">
                             <span id="collector-dot" class="inline-block w-3 h-3 bg-red-500 rounded-full pulsing mr-3"></span>
-                            <span id="collector-status-text" class="font-semibold">Actively collecting comments</span>
+                            <span id="collector-status-text" class="font-semibold">Live käynnissä! Kerätään kommentteja...</span>
                         </div>
                         <div>
                             <span class="font-semibold" id="collector-comment-count">0</span>
-                            <span class="text-red-700">comments</span>
+                            <span class="text-red-700">kommenttia</span>
                         </div>
                     </div>
                 </div>
@@ -230,6 +230,9 @@
         />
     </footer>
     
+    <script>
+        window.RAFFLERI_CHANNEL_URL = "{{ channel_url|e }}";
+    </script>
     <script src="/static/js/main.js?v=collector1"></script>
 </body>
 </html>

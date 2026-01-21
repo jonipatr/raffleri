@@ -82,7 +82,8 @@ def get_collector() -> LiveChatCollector:
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     """Serve the main HTML page."""
-    html_content = render_template("index.html", {"request": request})
+    channel_url = os.getenv("CHANNEL_URL") or "https://www.youtube.com/@prodiscus_official"
+    html_content = render_template("index.html", {"request": request, "channel_url": channel_url})
     return HTMLResponse(content=html_content)
 
 
@@ -91,11 +92,12 @@ async def health_check():
     return {"status": "ok"}
 
 
-@app.get("/testing", response_class=HTMLResponse)
-async def read_testing(request: Request):
-    """Serve the testing HTML page with URL type selection."""
-    html_content = render_template("testing.html", {"request": request})
-    return HTMLResponse(content=html_content)
+## Testing page disabled (commented out for production)
+# @app.get("/testing", response_class=HTMLResponse)
+# async def read_testing(request: Request):
+#     """Serve the testing HTML page with URL type selection."""
+#     html_content = render_template("testing.html", {"request": request})
+#     return HTMLResponse(content=html_content)
 
 
 @app.post("/api/youtube/entries", response_model=RaffleResponse)
@@ -114,12 +116,6 @@ async def youtube_raffle(request: RaffleRequest):
         # Run the blocking API call in a thread pool to avoid blocking the event loop
         loop = asyncio.get_event_loop()
         api = get_youtube_api()
-
-        # Stop background collection when raffle starts
-        try:
-            get_collector().stop()
-        except Exception:
-            pass
 
         def raffle_from_db_or_fallback():
             db = get_db_session()
