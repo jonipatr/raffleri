@@ -1,5 +1,7 @@
 import threading
+import threading
 import time
+import os
 from typing import Dict, Optional
 
 from app.api.youtube_api import YouTubeAPI
@@ -59,6 +61,7 @@ class LiveChatCollector:
             db = get_db_session()
             session = get_or_create_stream_session(db, live_chat_id, reset_on_new_live_chat=False)
             page_token = session.next_page_token
+            min_poll_seconds = float(os.getenv("COLLECTOR_MIN_POLL_SECONDS", "5"))
 
             while not stop_event.is_set():
                 try:
@@ -80,8 +83,9 @@ class LiveChatCollector:
                         self._state["last_error"] = str(e)
                     polling_interval_ms = 5000
 
-                sleep_sec = max(0.5, (polling_interval_ms or 1000) / 1000.0)
-                time.sleep(min(sleep_sec, 2.0))
+                # Respect YouTube's recommended interval, but don't poll faster than min_poll_seconds.
+                sleep_sec = max(min_poll_seconds, (polling_interval_ms or 1000) / 1000.0)
+                time.sleep(sleep_sec)
         finally:
             if db:
                 db.close()
